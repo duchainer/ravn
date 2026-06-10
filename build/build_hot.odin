@@ -5,6 +5,7 @@ import "../platform"
 import "../base"
 import "../base/ufmt"
 
+import "core:path/filepath"
 import "core:strings"
 import "core:strconv"
 import "base:runtime"
@@ -39,26 +40,34 @@ exec :: proc(str: string) -> bool {
 
 compile_hot :: proc(pkg: string, pkg_name: string, index: int) {
     path := ufmt.tprintf("%s%i" + DLL_EXT, pkg_name, index)
-    assert(!platform.file_exists(path))
+    assert(!platform.file_exists(path), ufmt.tprintf("!platform.file_exists(\"%s\")", path))
     exec(ufmt.tprintf("%s build %s -out:%s -debug -build-mode:dll", ODIN_EXE, pkg, path))
 }
 
 clean_hot :: proc(pkg: string) {
-    remove_all(ufmt.tprintf("%s*.dll", pkg))
-    remove_all(ufmt.tprintf("%s*.pdb", pkg))
-    remove_all(ufmt.tprintf("%s*.exp", pkg))
-    remove_all(ufmt.tprintf("%s*.lib", pkg))
-    remove_all(ufmt.tprintf("%s*.rdi", pkg))
+    when ODIN_OS == .Windows {
+        remove_all(ufmt.tprintf("%s*.dll", pkg))
+        remove_all(ufmt.tprintf("%s*.pdb", pkg))
+        remove_all(ufmt.tprintf("%s*.exp", pkg))
+        remove_all(ufmt.tprintf("%s*.lib", pkg))
+        remove_all(ufmt.tprintf("%s*.rdi", pkg))
+    } else when ODIN_OS == .Linux {
+        remove_all(ufmt.tprintf("./%s*.so", pkg)) // linux dll
+    }
 }
 
 hotreload_find_latest_dll :: proc(pkg_name: string) -> (result: Hotreload_File, ok: bool) {
-    pattern := ufmt.tprintf("%s*" + DLL_EXT, pkg_name)
-
+    when ODIN_OS == .Windows {
+        pattern := ufmt.tprintf("%s*" + DLL_EXT, pkg_name)
+    } else when ODIN_OS == .Linux || ODIN_OS == .Darwin {
+        pattern := ufmt.tprintf("./%s*" + DLL_EXT, pkg_name)
+    }
     max_index: int = -1
 
     iter: platform.Directory_Iter
     for path in platform.iter_directory(&iter, pattern, context.temp_allocator) {
-        if !strings.starts_with(path, pkg_name) {
+        base_filename := filepath.base(path)
+        if !strings.starts_with(base_filename, pkg_name) {
             continue
         }
 
@@ -66,7 +75,7 @@ hotreload_find_latest_dll :: proc(pkg_name: string) -> (result: Hotreload_File, 
             continue
         }
 
-        index_str := path[len(pkg_name) : len(path) - len(DLL_EXT)]
+        index_str := base_filename[len(pkg_name) : len(base_filename) - len(DLL_EXT)]
 
         digits: int
         index, _ := strconv.parse_int(index_str, 10, &digits)
