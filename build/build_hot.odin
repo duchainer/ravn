@@ -8,6 +8,7 @@ import "../base/ufmt"
 import "core:path/filepath"
 import "core:strings"
 import "core:strconv"
+import "core:os"
 import "base:runtime"
 
 when ODIN_OS == .Windows {
@@ -27,6 +28,11 @@ Hotreload_Module :: struct {
 Hotreload_File :: struct {
     path:       string,
     index:      int,
+}
+
+Async_Compile :: struct {
+    process:        os.Process,
+    target_index:   int,
 }
 
 exec :: proc(str: string) -> bool {
@@ -125,6 +131,7 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
     platform.init_file_watcher(&watcher, pkg_path)
 
     any_changes := false
+    compile: Maybe(Async_Compile)
 
     for {
         assert(module.callback != nil)
@@ -149,8 +156,38 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
             any_changes = false
 
             when ODIN_OS == .Linux {
-                base.log_info("HOTRELOADAUTO RECOMPILING")
-                compile_hot(pkg_path, pkg, curr_index + 1)
+                if compile == nil {
+                    target_index := curr_index + 1
+                    path := ufmt.tprintf("%s%i" + DLL_EXT, pkg, target_index)
+                    if platform.file_exists(path) {
+                        base.log_err("Hotreload: Target DLL already exists: %s", path)
+                    } else {
+                        base.log_info("HOTRELOADAUTO RECOMPILING")
+                        desc := os.Process_Desc{
+                            command = {"sh", "-c", ufmt.tprintf("%s build %s -out:%s -debug -build-mode:dll", ODIN_EXE, pkg_path, path)},
+                        }
+                        p, err := os.process_start(desc)
+                        if err == nil {
+                            compile = Async_Compile{process = p, target_index = target_index}
+                        } else {
+                            base.log_err("Hotreload: Failed to start compile: %v", err)
+                        }
+                    }
+                }
+            }
+        }
+
+        when ODIN_OS == .Linux {
+            if compile != nil {
+                state, _ := os.process_wait(compile.?.process, 0)
+                if state.exited {
+                    if state.exit_code == 0 {
+                        platform.sleep_ms(100)
+                    } else {
+                        base.log_err("Hotreload: Compile failed with exit code %i", state.exit_code)
+                    }
+                    compile = nil
+                }
             }
         }
 
@@ -183,6 +220,13 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
         }
 
         free_all(context.temp_allocator)
+    }
+
+    when ODIN_OS == .Linux {
+        if compile != nil {
+            _ = os.process_kill(compile.?.process)
+            _, _ = os.process_wait(compile.?.process)
+        }
     }
 
     for lib, i in modules_to_unload {
