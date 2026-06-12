@@ -477,6 +477,7 @@ __module_hot_step :: proc "contextless" (prev_state: ^State, desc: Module_Desc) 
         hotreloaded = true
         set_state_ptr(prev_state)
         context = get_context()
+        _state.screen_dirty = true
     }
 
     context = get_context()

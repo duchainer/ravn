@@ -148,11 +148,10 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
         if prev_any_changes && any_changes {
             any_changes = false
 
-            // EXPERIMENTAL
-            // Sometimes fails with:
-            // Syntax Error: Failed to parse file: something.odin; invalid file or cannot be found
-            // base.log_info("HOTRELOADAUTO RECOMPILING")
-            // compile_hot(pkg_path, pkg, curr_index + 1)
+            when ODIN_OS == .Linux {
+                base.log_info("HOTRELOADAUTO RECOMPILING")
+                compile_hot(pkg_path, pkg, curr_index + 1)
+            }
         }
 
         new_file, new_ok := hotreload_find_latest_dll(pkg)

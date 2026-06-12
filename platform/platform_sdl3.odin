@@ -33,7 +33,11 @@ when BACKEND == BACKEND_SDL3 {
     _File_Handle :: struct {
     }
 
-    _File_Watcher :: struct { _: u8 }
+    _File_Watcher :: struct {
+        path:      string,
+        recursive: bool,
+        files:     map[string]time.Time,
+    }
     _Directory_Iter :: struct {
         index: i32,
         count: i32,
@@ -653,15 +657,101 @@ when BACKEND == BACKEND_SDL3 {
 
     @(require_results)
     _init_file_watcher :: proc(watcher: ^File_Watcher, path: string, recursive := false) -> bool {
-        return false
+        if !os.is_directory(path) {
+            return false
+        }
+
+        watcher.path = strings.clone(path, context.allocator)
+        watcher.recursive = recursive
+        watcher.files = make(map[string]time.Time, context.allocator)
+
+        if recursive {
+            w: os.Walker
+            os.walker_init(&w, watcher.path)
+            defer os.walker_destroy(&w)
+
+            for fi in os.walker_walk(&w) {
+                if fi.type == .Regular {
+                    rel := strings.trim_prefix(fi.fullpath, watcher.path)
+                    if len(rel) > 0 && rel[0] == '/' {
+                        rel = rel[1:]
+                    }
+                    watcher.files[strings.clone(rel, context.allocator)] = fi.modification_time
+                }
+            }
+        } else {
+            fis, err := os.read_all_directory_by_path(watcher.path, context.temp_allocator)
+            if err != nil {
+                return false
+            }
+
+            for fi in fis {
+                if fi.type == .Regular {
+                    watcher.files[strings.clone(fi.name, context.allocator)] = fi.modification_time
+                }
+            }
+        }
+
+        return true
     }
 
     @(require_results)
     _poll_file_watcher :: proc(watcher: ^File_Watcher) -> []string {
-        return nil
+        result := make([dynamic]string, 0, 0, context.temp_allocator)
+        new_files := make(map[string]time.Time, len(watcher.files), context.allocator)
+
+        if watcher.recursive {
+            w: os.Walker
+            os.walker_init(&w, watcher.path)
+            defer os.walker_destroy(&w)
+
+            for fi in os.walker_walk(&w) {
+                if fi.type != .Regular {
+                    continue
+                }
+                rel := strings.trim_prefix(fi.fullpath, watcher.path)
+                if len(rel) > 0 && rel[0] == '/' {
+                    rel = rel[1:]
+                }
+
+                prev, had := watcher.files[rel]
+                if !had || prev != fi.modification_time {
+                    append(&result, strings.clone(rel, context.temp_allocator))
+                }
+                new_files[strings.clone(rel, context.allocator)] = fi.modification_time
+            }
+        } else {
+            fis, err := os.read_all_directory_by_path(watcher.path, context.temp_allocator)
+            if err == nil {
+                for fi in fis {
+                    if fi.type != .Regular {
+                        continue
+                    }
+                    prev, had := watcher.files[fi.name]
+                    if !had || prev != fi.modification_time {
+                        append(&result, strings.clone(fi.name, context.temp_allocator))
+                    }
+                    new_files[strings.clone(fi.name, context.allocator)] = fi.modification_time
+                }
+            }
+        }
+
+        for rel in watcher.files {
+            if rel not_in new_files {
+                append(&result, strings.clone(rel, context.temp_allocator))
+            }
+        }
+
+        delete(watcher.files)
+        watcher.files = new_files
+
+        return result[:]
     }
 
     _destroy_file_watcher :: proc(watcher: ^File_Watcher) {
+        delete(watcher.files)
+        delete(watcher.path, context.allocator)
+        watcher^ = {}
     }
 
     @(require_results)
