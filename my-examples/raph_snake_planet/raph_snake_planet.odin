@@ -15,6 +15,8 @@ import ufmt "../../base/ufmt"
 SNAKE_RED :: [4]f32{1, 0.3, 0, 1}
 SNAKE_ORANGE :: rv.ORANGE
 
+PLANET_SIZE :: 0.75
+
 state: ^State
 
 State :: struct {
@@ -86,14 +88,14 @@ repel_from_obstacles :: proc(pos:[3] f32, radius: f32) -> [3]f32{
         dir := linalg.normalize0(pos - obst.pos)
 
         // stay on the surface of the planet
-        pos = linalg.normalize0(pos + dir * (r-dist))
+        pos = (linalg.normalize0(pos + dir * (r-dist)) * PLANET_SIZE)
     }
     return pos
 }
 
 spawn_berry :: proc() {
     state.berry = {
-        pos = rand_dir()
+        pos = rand_dir() * PLANET_SIZE
     }
 
     for i in 0..<5 {
@@ -131,7 +133,7 @@ new_game :: proc() {
     state.num_obsts = 10
     for i in 0..<state.num_obsts {
         state.obsts[i] = {
-            pos = rand_dir(),
+            pos = rand_dir() * PLANET_SIZE,
             radius = rand.float32_range(0.1, 0.2)
         }
     }
@@ -156,7 +158,7 @@ add_snake_segment :: proc() {
     } else {
         offsets = snake.segments[snake.num_segments - 1].pos - snake.pos
     }
-    offsets = linalg.normalize0(offsets)
+    offsets = (linalg.normalize0(offsets) * PLANET_SIZE)
     snake.segments[snake.num_segments] = {
         pos = pos + offsets,
     }
@@ -203,6 +205,13 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
 
         cam_rot_mat := linalg.matrix3_from_quaternion_f32(state.cam.rot)
 
+
+        //
+        // MARK : INPUT
+        //
+
+
+
         // TODO: Gamepad
         move_input : [2]f32
         if rv.get_key_down(.D) do move_input.x += 1
@@ -217,6 +226,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
 
         // move_dir := move_inp.x * [3]f32{1, 0, 0} + mat[1] * [3]f32{0, 1, 0}
 
+
         if linalg.length2(move_input) > 0.1 {
             move_input = linalg.normalize0(move_input)
         }
@@ -224,7 +234,9 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
         snake.dir += move_input * delta * 8
         snake.dir = linalg.normalize0(snake.dir)
 
-        world_dir := cam_rot_mat[0] * snake.dir.x + cam_rot_mat[1] * snake.dir.y
+        world_dir :=
+            cam_rot_mat[0] * snake.dir.x +
+            cam_rot_mat[1] * snake.dir.y
 
         base_speed : f32 = 0.7
         speed: f32 = base_speed + f32(snake.num_segments / 4) * 0.05
@@ -233,7 +245,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
         speed *= rv.remap_clamped(state.berry_timer, 0, 0.5, 1.5, 1)
 
         snake.pos += world_dir * delta * speed
-        snake.pos = linalg.normalize0(snake.pos)
+        snake.pos = linalg.normalize0(snake.pos) * PLANET_SIZE
 
         state.berry_timer += delta
 
@@ -253,7 +265,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
             prev := i == 0 ? snake.pos :(
                 snake.segments[i - 1].pos
             )
-            seg.pos = prev + linalg.normalize0(seg.pos - prev) * 0.15
+            seg.pos = prev + (linalg.normalize0(seg.pos - prev) * PLANET_SIZE) * (0.15/PLANET_SIZE)
         }
 
         die := false
@@ -265,7 +277,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
         }
 
         for &seg, i in snake.segments[:snake.num_segments] {
-            seg.pos = linalg.normalize0(seg.pos)
+            seg.pos = (linalg.normalize0(seg.pos) * PLANET_SIZE)
             if i>0 && linalg.distance(seg.pos, snake.pos) < 0.15 {
                 die = true
             }
@@ -309,7 +321,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
         rv.set_draw_texture(rv.get_builtin_texture(.Default))
 
         sphere := rv.get_builtin_mesh(.Icosphere_1)
-        rv.draw_mesh(sphere, 0, col = [4]f32{0.0, 0.6, 0.2, 1})
+        rv.draw_mesh(sphere, pos=0, scale=PLANET_SIZE, col = [4]f32{0.0, 0.6, 0.2, 1})
         rv.set_draw_texture(rv.get_builtin_texture(.White))
 
         rv.draw_mesh(sphere, snake.pos, scale = 0.15, col = rv.ORANGE + rv.YELLOW * 0.1)
