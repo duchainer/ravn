@@ -385,6 +385,10 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
             )
         }
 
+        if rv.get_key_pressed(.Space) {
+            state.screen = .Menu
+        }
+
     case .Menu:
         {
             char_sprites := rv.draw_text(
@@ -413,6 +417,10 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
                 "Music by Nolram. Thank you!", {screen_size.x * 0.5, screen_size.y - 32, 0.1},
                 anchor = 0, scale = 2, col = rv.hex_color(0x06e4c2)
             )
+
+            if rv.get_key_pressed(.Space) {
+                new_game()
+            }
         }
     }
 
