@@ -317,7 +317,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
             rv.draw_mesh(
                 handle = sphere,
                 pos = seg.pos * (1.0 + 0.025 * rv.nsin(f32(i) * 0.21 - rv.get_time())),
-                scale = 0,
+                scale = 0.15,
                 col = i%2 == 0 ? SNAKE_RED : SNAKE_ORANGE,
             )
         }
