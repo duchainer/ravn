@@ -31,7 +31,6 @@ State :: struct {
 
     berry: Berry,
     berry_timer: f32,
-    amount_left_to_grow: int,
 
     max_score: i32,
     screen: Screen_ID,
@@ -256,19 +255,12 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
 
         state.berry_timer += delta
 
-        // We spawn more snake tail a bit later, to not instantly kill snake on eat.
-        if state.berry_timer > 0.5 && state.amount_left_to_grow > 0 {
-            add_snake_segment()
-            add_snake_segment()
-            state.amount_left_to_grow -= 2;
-        }
-
-
         if linalg.distance(state.berry.pos, snake.pos) < 0.2 {
             spawn_berry()
 
+            add_snake_segment()
+            add_snake_segment()
             state.berry_timer = 0
-            state.amount_left_to_grow = 2
         }
 
         for &seg, i in snake.segments[:snake.num_segments] {
