@@ -200,7 +200,9 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
     // MARK : TICK
     //
 
-    if state.screen == .Game {
+    _update_game :: proc (delta: f32){
+        rv.perf_scope()
+
         snake := &state.snake
 
         cam_rot_mat := linalg.matrix3_from_quaternion_f32(state.cam.rot)
@@ -304,6 +306,7 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
             state.screen = .Death
         }
     }
+    if state.screen == .Game do _update_game(delta)
 
     //
     // MARK : DRAW
