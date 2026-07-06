@@ -158,6 +158,8 @@ add_snake_segment :: proc() {
     } else {
         offsets = snake.segments[snake.num_segments - 1].pos - snake.pos
     }
+
+    // stay on the surface of the planet
     offsets = (linalg.normalize0(offsets) * PLANET_SIZE)
     snake.segments[snake.num_segments] = {
         pos = pos + offsets,
@@ -247,6 +249,8 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
         speed *= rv.remap_clamped(state.berry_timer, 0, 0.5, 1.5, 1)
 
         snake.pos += world_dir * delta * speed
+
+        // stay on the surface of the planet
         snake.pos = linalg.normalize0(snake.pos) * PLANET_SIZE
 
         state.berry_timer += delta
@@ -267,6 +271,8 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
             prev := i == 0 ? snake.pos :(
                 snake.segments[i - 1].pos
             )
+
+            // follow previous segment AND stay on the surface of the planet
             seg.pos = prev + (linalg.normalize0(seg.pos - prev) * PLANET_SIZE) * (0.15/PLANET_SIZE)
         }
 
