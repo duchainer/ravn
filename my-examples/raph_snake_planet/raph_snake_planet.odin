@@ -36,6 +36,7 @@ State :: struct {
     screen: Screen_ID,
 
     snake: Snake,
+    animation_clock_time: f32,
 
     berry_sound: rv.Sound_Resource_Handle,
     death_sound: rv.Sound_Resource_Handle,
@@ -324,7 +325,18 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
 
     rv.set_draw_depth(.Depth)
 
-    if state.screen == .Game {
+    if state.screen == .Game || state.screen == .Death {
+        snake_head_color := rv.ORANGE + rv.YELLOW * 0.1
+        snake_red := SNAKE_RED
+        snake_orange := SNAKE_ORANGE
+        if state.screen == .Game {
+            state.animation_clock_time = rv.get_time()
+        } else if state.screen == .Death {
+            snake_head_color = snake_head_color * 0.40
+            snake_red = snake_red * 0.75
+            snake_orange = snake_orange * 0.75
+        }
+
         snake := state.snake
 
         rv.set_draw_texture(rv.get_builtin_texture(.Default))
@@ -333,13 +345,13 @@ _update :: proc(hot_state: rawptr) -> (data_ptr: rawptr) {
         rv.draw_mesh(sphere, pos=0, scale=PLANET_SIZE, col = [4]f32{0.0, 0.6, 0.2, 1})
         rv.set_draw_texture(rv.get_builtin_texture(.White))
 
-        rv.draw_mesh(sphere, snake.pos, scale = 0.15, col = rv.ORANGE + rv.YELLOW * 0.1)
+        rv.draw_mesh(sphere, snake.pos, scale = 0.15, col = snake_head_color)
         for seg, i in snake.segments[:snake.num_segments] {
             rv.draw_mesh(
                 handle = sphere,
-                pos = seg.pos * (1.0 + 0.025 * rv.nsin(f32(i) * 0.21 - rv.get_time())),
+                pos = seg.pos * (1.0 + 0.025 * rv.nsin(f32(i) * 0.21 - state.animation_clock_time)),
                 scale = 0.15,
-                col = i%2 == 0 ? SNAKE_RED : SNAKE_ORANGE,
+                col = i%2 == 0 ? snake_red : snake_orange,
             )
         }
 
