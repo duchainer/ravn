@@ -51,8 +51,8 @@ _init :: proc(){
 	state.cam.target = {0, 0, 0}
 	state.cam.distance = 10
 
-    state.ball.pos = {10,10,10}
-    state.ball.vel = {0,0,0}
+    state.ball.pos = {10, 0, 0}  // Start just above planet surface for testing
+    state.ball.vel = {0,0.1,0}
     state.ball.radius = 0.10
 
     coll.init(new(coll.State))
@@ -94,15 +94,50 @@ _update :: proc(hot_state: rawptr) -> rawptr{
 
             ball := &state.ball
 
+            // Gravity toward planet center (inverse-square law)
             vec_ball_planet := state.planets[0].pos - ball.pos
-            distance2_ball_planet := linalg.vector_length2(vec_ball_planet)
-            dir_ball_planet := linalg.normalize0(vec_ball_planet)
-            ball.vel =  dir_ball_planet * 9.98 / distance2_ball_planet
-            ball.pos += ball.vel
+            dist2 := linalg.vector_length2(vec_ball_planet)
+            dist := linalg.vector_length(vec_ball_planet)
+
+
+            base.log_dump(dist > ball.radius + state.planets[0].radius)
+            if true && dist > ball.radius + state.planets[0].radius {
+                dir_ball_planet := vec_ball_planet / dist
+                gravity_accel := dir_ball_planet * 15.0 / dist2
+                ball.vel += gravity_accel * delta
+            }
+
+            // Air damping (lose 50% velocity per second)
+            // TODO Have it happen closer to the atmosphere of the "planets"
+            // ball.vel *= math.pow(0.5, delta)
+
+            // Store pre-collision velocity for bounce calculation
+            old_vel := ball.vel
 
             contacts: []coll.Contact
-            ball_rad : f32= 1
-            ball.pos, ball.vel, contacts = coll.collide_sphere(pos=ball.pos, vel=ball.vel, rad=ball_rad)
+            ball.pos, ball.vel, contacts = coll.collide_sphere(
+                pos = ball.pos,
+                vel = ball.vel,
+                rad = ball.radius,
+            )
+
+            // Bounce with restitution (energy absorption)
+            if len(contacts) > 0 {
+                // TODO have it be different per-planet instead, or something
+                restitution := f32(0.4)  // 0 = no bounce, 1 = perfect bounce
+
+                for contact in contacts {
+                    v_normal_before := linalg.dot(old_vel, contact.normal)
+                    // Only bounce if moving into the surface
+                    if v_normal_before < 0 {
+                        ball.vel += contact.normal * (-restitution * v_normal_before)
+                    }
+                }
+
+                // TODO have it be different per-planet instead, or something
+                // Extra ground friction when touching surface (lose ~10% per second)
+                ball.vel *= math.pow(0.5, delta)
+            }
         }
     }
 
@@ -113,6 +148,13 @@ _update :: proc(hot_state: rawptr) -> rawptr{
         if rv.get_mouse_down(.Left){
             state.cam.rot.xy += rv.get_mouse_delta().yx * 0.005
             state.cam.rot.x = clamp(state.cam.rot.x, -math.PI * 0.49, math.PI * 0.49)
+        }
+
+        // Zoom with scroll wheel
+        scroll := rv.get_scroll_delta().y
+        if scroll != 0 {
+            state.cam.distance *= math.pow(0.9, scroll)
+            state.cam.distance = clamp(state.cam.distance, 1.0, 100.0)
         }
 
         cam_rot_quat = rv.euler_rot(state.cam.rot)
