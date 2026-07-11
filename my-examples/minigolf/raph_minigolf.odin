@@ -7,15 +7,11 @@ import "core:math/linalg"
 import rv "../../."
 // import audio "../../audio"
 import platform "../../platform"
+import coll "../../collision"
 
 // import ufmt "../../base/ufmt"
 import base "../../base/"
 _ :: base
-
-Ball :: struct {
-    pos : [3]f32,
-    vel : [3]f32,
-}
 
 State :: struct {
 	cam:                  struct {
@@ -26,7 +22,20 @@ State :: struct {
         distance: f32,
 	},
 
-    ball : Ball,
+    ball : struct {
+        pos : [3]f32,
+        vel : [3]f32,
+        radius: f32,
+    },
+    planets: [10]struct{
+        pos: [3]f32,
+        radius: f32,
+    },
+
+    // coll: struct {
+    //     arena:      coll.Arena_Handle,
+    //     mesh:       coll.Mesh_Handle,
+    // },
 }
 
 state : ^State
@@ -44,6 +53,13 @@ _init :: proc(){
 
     state.ball.pos = {10,10,10}
     state.ball.vel = {0,0,0}
+    state.ball.radius = 0.10
+
+    coll.init(new(coll.State))
+
+    // state.arena = coll.create_arena(1024 * 1024)
+    // state.mesh = coll.create_mesh(state.arena, _verts, _triangles)
+
 }
 
 _shutdown :: proc(){
@@ -64,32 +80,46 @@ _update :: proc(hot_state: rawptr) -> rawptr{
     }
 
     cam_rot_quat: quaternion128
-    delta := rv.get_delta_time()
+
+    state.planets[0] = {
+        pos = {0, 0, 0},
+        radius = 1,
+    }
     {
-        rv.perf_scope("_update_game")
+        coll.add_sphere_shape(pos=state.planets[0].pos, rad=state.planets[0].radius, layer=0, id=0)
 
+        delta := rv.get_delta_time()
         {
-            rv.perf_scope("_update_camera")
-            move: [3]f32
-            if rv.get_key_down(.D) do move.x += 1
-            if rv.get_key_down(.A) do move.x -= 1
-            if rv.get_key_down(.W) do move.z += 1
-            if rv.get_key_down(.S) do move.z -= 1
-            if rv.get_key_down(.E) do move.y += 1
-            if rv.get_key_down(.Q) do move.y -= 1
+            rv.perf_scope("_update_game")
 
-            // Camera Orbit on left mouse drag
-            if rv.get_mouse_down(.Left){
-                state.cam.rot.xy += rv.get_mouse_delta().yx * 0.005
-                state.cam.rot.x = clamp(state.cam.rot.x, -math.PI * 0.49, math.PI * 0.49)
-            }
+            ball := &state.ball
 
-            cam_rot_quat = rv.euler_rot(state.cam.rot)
-            mat := linalg.matrix3_from_quaternion_f32(cam_rot_quat)
+            vec_ball_planet := state.planets[0].pos - ball.pos
+            distance2_ball_planet := linalg.vector_length2(vec_ball_planet)
+            dir_ball_planet := linalg.normalize0(vec_ball_planet)
+            ball.vel =  dir_ball_planet * 9.98 / distance2_ball_planet
+            ball.pos += ball.vel
 
-            forward := mat[2]
-            state.cam.pos = state.cam.target - forward * state.cam.distance
+            contacts: []coll.Contact
+            ball_rad : f32= 1
+            ball.pos, ball.vel, contacts = coll.collide_sphere(pos=ball.pos, vel=ball.vel, rad=ball_rad)
         }
+    }
+
+    {
+        rv.perf_scope("_update_camera")
+
+        // Camera Orbit on left mouse drag
+        if rv.get_mouse_down(.Left){
+            state.cam.rot.xy += rv.get_mouse_delta().yx * 0.005
+            state.cam.rot.x = clamp(state.cam.rot.x, -math.PI * 0.49, math.PI * 0.49)
+        }
+
+        cam_rot_quat = rv.euler_rot(state.cam.rot)
+        mat := linalg.matrix3_from_quaternion_f32(cam_rot_quat)
+
+        forward := mat[2]
+        state.cam.pos = state.cam.target - forward * state.cam.distance
     }
 
     rv.update_draw_layer(
@@ -110,7 +140,9 @@ _update :: proc(hot_state: rawptr) -> rawptr{
         rv.set_draw_texture(rv.get_builtin_texture(.Default))
 
         sphere := rv.get_builtin_mesh(.Icosphere_1)
-        rv.draw_mesh(sphere, 0, scale = 1, col= [4]f32{0.0, 0.6, 0.2, 1})
+        rv.draw_mesh(sphere, pos = state.planets[0].pos, scale = state.planets[0].radius, col= [4]f32{0.0, 0.6, 0.2, 1})
+
+        rv.draw_mesh(sphere, pos = state.ball.pos, scale = state.ball.radius, col = 1)
     }
 
     // Ui Draw
