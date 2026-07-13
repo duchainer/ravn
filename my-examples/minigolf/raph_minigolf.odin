@@ -121,21 +121,28 @@ _update :: proc(hot_state: rawptr) -> rawptr{
                 rad = ball.radius,
             )
 
-            // Bounce with restitution (energy absorption)
             if len(contacts) > 0 {
-                // TODO have it be different per-planet instead, or something
-                restitution := f32(0.4)  // 0 = no bounce, 1 = perfect bounce
+                // Snap ball to exact surface distance. collide_sphere only resolves
+                // velocity (no direct position fix), so penetration or floating
+                // is common on discrete steps. Force the exact contact distance.
+                dir := linalg.normalize(ball.pos - state.planets[0].pos)
+                ball.pos = state.planets[0].pos + dir * (state.planets[0].radius + ball.radius)
+
+                // Bounce with restitution (energy absorption)
+                // Gate it so gravity on resting contact doesn't create a persistent float.
+                restitution := f32(0.4)
+                impact_threshold := f32(0.3) // m/s; below this treat as resting contact
 
                 for contact in contacts {
                     v_normal_before := linalg.dot(old_vel, contact.normal)
-                    // Only bounce if moving into the surface
-                    if v_normal_before < 0 {
+                    // Only bounce on real impact, not gentle resting gravity
+                    if v_normal_before < -impact_threshold {
                         ball.vel += contact.normal * (-restitution * v_normal_before)
                     }
                 }
 
                 // TODO have it be different per-planet instead, or something
-                // Extra ground friction when touching surface (lose ~10% per second)
+                // Ground friction when touching surface
                 ball.vel *= math.pow(0.5, delta)
             }
         }
@@ -181,7 +188,7 @@ _update :: proc(hot_state: rawptr) -> rawptr{
     {
         rv.set_draw_texture(rv.get_builtin_texture(.Default))
 
-        sphere := rv.get_builtin_mesh(.Icosphere_1)
+        sphere := rv.get_builtin_mesh(.UV_Sphere_1)
         rv.draw_mesh(sphere, pos = state.planets[0].pos, scale = state.planets[0].radius, col= [4]f32{0.0, 0.6, 0.2, 1})
 
         rv.draw_mesh(sphere, pos = state.ball.pos, scale = state.ball.radius, col = 1)
