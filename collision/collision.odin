@@ -8,6 +8,8 @@ import "../base"
 import "../geometry"
 import "../bvh"
 
+import "core:fmt"
+
 // TODO: no_bounds_check once stable
 
 _state: ^State
@@ -770,7 +772,9 @@ sweep_sphere :: proc(
                 }
 
                 result.t, result.prim = sweep_sphere_vs_shape(pos, move, rad, shape, result.t) or_continue
-                assert(base.is_finite_f32(result.t))
+
+
+                assert(base.is_finite_f32(result.t), fmt.tprintf("%v", result))
                 result.shape = i32(index)
                 ok = true
             }
