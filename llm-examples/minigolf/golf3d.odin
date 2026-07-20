@@ -33,6 +33,7 @@ GROUND_THICK :: f32(0.20)
 Ball :: struct {
 	pos:  [3]f32,
 	vel:  [3]f32,
+    radius: f32,
 	sunk: bool,
 	name: string,
 }
@@ -41,32 +42,53 @@ Hole :: struct {
 	pos: [3]f32, // ground-level position, y = 0
 }
 
+Box :: struct {
+    pos:   [3]f32,
+    scale: [3]f32,
+    color: [4]f32,
+}
+
 // ---- course geometry (registered fresh into the collision step every tick) --
 
 register_course :: proc() {
-	// Ground: top surface sits exactly at y = 0.
-	collision.add_box_shape(
+    g.boxes[0] = {
 		pos   = {0, -GROUND_THICK * 0.5, 0},
 		scale = {COURSE_HALF_X, GROUND_THICK * 0.5, COURSE_HALF_Z},
-	)
+        color = [4]f32{0, 0.8, 0, 1},
+    }
 
-	// Four perimeter walls (bumpers).
-	collision.add_box_shape(
+	// Ground: top surface sits exactly at y = 0.
+	collision.add_box_shape(g.boxes[0].pos, g.boxes[0].scale)
+
+    g.boxes[1] = {
 		pos   = {-COURSE_HALF_X - WALL_THICK, WALL_HEIGHT * 0.5, 0},
 		scale = {WALL_THICK, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
-	)
-	collision.add_box_shape(
+        color = [4]f32{0.8, 0.8, 0, 1},
+    }
+	// Four perimeter walls (bumpers).
+	collision.add_box_shape(g.boxes[1].pos, g.boxes[1].scale)
+
+
+	g.boxes[2] = {
 		pos   = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, 0},
 		scale = {WALL_THICK, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
-	)
-	collision.add_box_shape(
+        color = [4]f32{0.8, 0.8, 0, 1},
+	}
+    collision.add_box_shape(g.boxes[2].pos, g.boxes[2].scale)
+
+	g.boxes[3] = {
 		pos   = {0, WALL_HEIGHT * 0.5, -COURSE_HALF_Z - WALL_THICK},
 		scale = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, WALL_THICK},
-	)
-	collision.add_box_shape(
+        color = [4]f32{0.8, 0.8, 0, 1},
+    }
+	collision.add_box_shape(g.boxes[3].pos, g.boxes[3].scale)
+
+	g.boxes[4] = {
 		pos   = {0, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
 		scale = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, WALL_THICK},
-	)
+        color = [4]f32{0.8, 0.8, 0, 1},
+    }
+	collision.add_box_shape(g.boxes[4].pos, g.boxes[4].scale)
 }
 
 // ---- physics -------------------------------------------------------
@@ -135,10 +157,19 @@ all_settled :: proc(balls: []Ball) -> bool {
 // ---- main -------------------------------------------------------
 
 Game_State :: struct {
+	cam: struct {
+		pos: [3]f32,
+		rot: [3]f32,
+		fov: f32,
+        target: [3]f32,
+        distance: f32,
+	},
+
 	balls : [2]Ball,
 	collision: struct{
         state: collision.State
     },
+    boxes: [8]Box,
     t: i64,
 }
 
@@ -149,9 +180,15 @@ _init :: proc(){
 
     g = new(Game_State)
 
+	g.cam.pos = {0, 0, -10}
+	g.cam.rot = {0.3, 0, 0}
+	g.cam.fov = rv.deg(degrees = 90)
+	g.cam.target = {0, 0, 0}
+	g.cam.distance = 10
+
 	g.balls = [2]Ball{
-		Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {2.6, 0, -0.9}, name = "P1"},
-		Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {3.1, 0, 0.5}, name = "P2"},
+		Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {2.6, 0, -0.9}, name = "P1", radius = BALL_RADIUS},
+		Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {3.1, 0, 0.5}, name = "P2", radius = BALL_RADIUS},
 	}
 
     g.t = 0
@@ -168,21 +205,16 @@ _shutdown :: proc(){
 hole :: Hole{pos = {3.4, 0, 0}}
 MAX_TICKS :: 60 * 20
 TEST_NUMBER :: 1
-_update :: proc(hot_state: rawptr) -> rawptr{
-    rv.perf_scope()
 
-    // Only called on hot-reload
-    if hot_state != nil{
-        g = cast(^Game_State)hot_state
-    }
-
+tests :: proc (){
+    g.t += 1
 	when TEST_NUMBER == 1{
         using g
 	    if g.t == MAX_TICKS{
             fmt.println()
             fmt.printfln("Final: P1 sunk=%v pos=%v   P2 sunk=%v pos=%v", balls[0].sunk, balls[0].pos, balls[1].sunk, balls[1].pos)
         }
-	    if g.t > MAX_TICKS do return &g // done
+	    if g.t > MAX_TICKS do return // done
 		tick(balls[:], hole, DELTA)
 		free_all(context.temp_allocator) // collision package uses temp_allocator internally each step
 
@@ -198,7 +230,7 @@ _update :: proc(hot_state: rawptr) -> rawptr{
 		if all_settled(balls[:]) {
 			fmt.println()
 			fmt.printfln("All balls settled at g.t=%d (%.2fs)", g.t, f32(g.t) * DELTA)
-			return &g // done
+			return // done
 		}
 	}
     when TEST_NUMBER == 2 {
@@ -240,6 +272,97 @@ _update :: proc(hot_state: rawptr) -> rawptr{
 	}
 
     }
+}
+
+_update :: proc(hot_state: rawptr) -> rawptr{
+    rv.perf_scope()
+
+    // Only called on hot-reload
+    if hot_state != nil{
+        g = cast(^Game_State)hot_state
+    }
+
+
+    if rv.get_key_pressed(.Escape){
+        rv.request_shutdown()
+        return &g
+    }
+
+    cam_rot_quat: quaternion128
+
+    {
+
+        delta := rv.get_delta_time()
+        {
+            rv.perf_scope("_update_game")
+
+            tests()
+        }
+    }
+
+    {
+        rv.perf_scope("_update_camera")
+
+        // Camera Orbit on left mouse drag
+        if rv.get_mouse_down(.Left){
+            g.cam.rot.xy += rv.get_mouse_delta().yx * 0.005
+            g.cam.rot.x = clamp(g.cam.rot.x, -math.PI * 0.49, math.PI * 0.49)
+        }
+
+        // Zoom with scroll wheel
+        scroll := rv.get_scroll_delta().y
+        if scroll != 0 {
+            g.cam.distance *= math.pow(0.9, scroll)
+            g.cam.distance = clamp(g.cam.distance, 1.0, 100.0)
+        }
+
+        cam_rot_quat = rv.euler_rot(g.cam.rot)
+        mat := linalg.matrix3_from_quaternion_f32(cam_rot_quat)
+
+        forward := mat[2]
+        g.cam.pos = g.cam.target - forward * g.cam.distance
+    }
+
+    rv.update_draw_layer(
+        0,
+        rv.make_perspective_3d_camera(
+            rv.get_screen_size(),
+            g.cam.pos,
+            cam_rot_quat,
+            g.cam.fov
+        )
+    )
+    rv.update_draw_layer(1, rv.make_screen_camera(rv.get_screen_size()))
+
+    rv.set_draw_depth(.Depth)
+
+    // 3d Draw
+    {
+        rv.set_draw_texture(rv.get_builtin_texture(.Default))
+
+        cube := rv.get_builtin_mesh(.Cube)
+        for box in g.boxes{
+            rv.draw_mesh(cube, box.pos, box.scale, col = box.color)
+        }
+
+        sphere := rv.get_builtin_mesh(.UV_Sphere_1)
+        for ball in g.balls{
+            rv.draw_mesh(sphere, pos = ball.pos, scale = ball.radius, col = 1)
+        }
+    }
+
+    // Ui Draw
+    {
+        rv.set_draw_layer(1)
+        rv.set_draw_texture(rv.get_builtin_texture(.CGA8x8thick))
+
+
+        rv.draw_perf_scopes()
+    }
+
+	rv.submit_layers()
+    rv.render_layer(0, rv.DEFAULT_RENDER_TEXTURE, nil, true)
+    rv.render_layer(1, rv.DEFAULT_RENDER_TEXTURE, nil, false)
 
     return &g
 }
