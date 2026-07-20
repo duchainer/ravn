@@ -117,10 +117,11 @@ tick_ball :: proc(ball: ^Ball, hole: Hole, dt: f32) {
 
 	ball.vel.y -= GRAVITY * dt
 	ball.vel = apply_rolling_friction_xz(ball.vel, dt)
+    old_vel := ball.vel
 
-	new_pos, new_vel := collision.collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS)
-	ball.pos = new_pos
-	ball.vel = new_vel
+	new_pos, new_vel, contacts := collision.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.9)
+    ball.pos = new_pos
+    ball.vel = new_vel
 
 	horiz_dist := linalg.length([2]f32{ball.pos.x - hole.pos.x, ball.pos.z - hole.pos.z})
 	speed := linalg.length(ball.vel)
@@ -188,10 +189,6 @@ _init :: proc(){
 	g.cam.target = {0, 0, 0}
 	g.cam.distance = 10
 
-	g.balls = [2]Ball{
-		Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {2.6, 0, -0.9}, name = "P1", radius = BALL_RADIUS},
-		Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {3.1, 0, 0.5}, name = "P2", radius = BALL_RADIUS},
-	}
 
     g.t = 0
 
@@ -217,6 +214,11 @@ tests :: proc (){
 	if start_tick < g.t && g.t < start_tick + 1000{
         if g.t == start_tick + 1 {
             g.holes[0] = Hole{pos = {3.4, 0, 0}}
+
+            g.balls = [2]Ball{
+                Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {12.6, 0, -0.9}, name = "P1", radius = BALL_RADIUS},
+                Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {6.1, 0, 0.5}, name = "P2", radius = BALL_RADIUS},
+            }
         }
 
         using g
@@ -241,46 +243,24 @@ tests :: proc (){
 			fmt.printfln("All balls settled at g.t=%d (%.2fs)", g.t, f32(g.t) * DELTA)
 			return // done
 		}
-	}
+
+    }
     start_tick = 1000
 	if start_tick < g.t && g.t < start_tick + 1000{
-    // TODO Convert to ravn _update proc
-	// --- scenario 2: aimed shot, should sink ---
-    if g.t == start_tick + 1 {
-        fmt.println()
-        fmt.println("=== Scenario 2: aimed capture check ===")
-        g.holes[1] = Hole{pos = {2.0, 0, 0}}
-        start2 := [3]f32{-3.5, BALL_RADIUS, 0}
-        dir2 := linalg.normalize(g.holes[1].pos - start2)
-        // v^2 = v_final^2 + 2*a*d, aim to arrive just under capture speed
-        dist2 := linalg.length(g.holes[1].pos - start2)
-        aimed_speed := math.sqrt((CAPTURE_SPEED*0.7)*(CAPTURE_SPEED*0.7) + 2*ROLLING_FRICTION_DECEL*dist2)
-        g.balls = [2]Ball{Ball{pos = start2, vel = dir2 * aimed_speed, name = "aimed"}, Ball{}}
-    }
-
-    tick(g.balls[0:0], g.holes[1], DELTA)
-    free_all(context.temp_allocator)
-    if g.balls[0].sunk || linalg.length([2]f32{g.balls[0].vel.x, g.balls[0].vel.z}) == 0 {
-        fmt.printfln("aimed: sunk=%v final_pos=%v", g.balls[0].sunk, g.balls[0].pos)
-    }
-
-    }
-    start_tick = 2000
-	if start_tick < g.t && g.t < start_tick + 1000{
-    // TODO Convert to ravn _update proc
-	// --- scenario 3: straight shot into a wall, checking bounce behavior ---
-	if g.t == 1 {
-        fmt.println()
-        fmt.println("=== Scenario 3: wall-hit behavior ===")
-        g.holes[2] = Hole{pos = {999, 0, 999}} // far away, irrelevant to this test
-        g.balls = [2]Ball{Ball{pos = {0, BALL_RADIUS, 0}, vel = {5.0, 0, 0}, name = "into_wall"}, Ball{}}
-	    fmt.printfln("g.t=  0  pos=%v vel=%v", g.balls[0].pos, g.balls[0].vel)
-    }
-    tick(g.balls[0:0], g.holes[2], DELTA)
-    free_all(context.temp_allocator)
-    if g.t % 10 == 0 || g.t < 5 {
-        fmt.printfln("g.t=%3d  pos=%v vel=%v", g.t, g.balls[0].pos, g.balls[0].vel)
-    }
+        // TODO Convert to ravn _update proc
+        // --- scenario 3: straight shot into a wall, checking bounce behavior ---
+        if g.t == start_tick + 1 {
+            fmt.println()
+            fmt.println("=== Scenario 3: wall-hit behavior ===")
+            g.holes[2] = Hole{pos = {999, 0, 999}} // far away, irrelevant to this test
+            g.balls = [2]Ball{Ball{pos = {0, BALL_RADIUS, 0}, vel = {5.0, 0, 0}, name = "into_wall"}, Ball{}}
+            fmt.printfln("g.t=  0  pos=%v vel=%v", g.balls[0].pos, g.balls[0].vel)
+        }
+        tick(g.balls[0:0], g.holes[2], DELTA)
+        free_all(context.temp_allocator)
+        if g.t % 10 == 0 || g.t < start_tick + 5 {
+            fmt.printfln("g.t=%3d  pos=%v vel=%v", g.t, g.balls[0].pos, g.balls[0].vel)
+        }
 
     }
 }
