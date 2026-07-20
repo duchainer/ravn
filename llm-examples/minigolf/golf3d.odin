@@ -119,7 +119,7 @@ tick_ball :: proc(ball: ^Ball, hole: Hole, dt: f32) {
 	ball.vel = apply_rolling_friction_xz(ball.vel, dt)
     old_vel := ball.vel
 
-	new_pos, new_vel, contacts := collision.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.9)
+	new_pos, new_vel := collision.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.9)
     ball.pos = new_pos
     ball.vel = new_vel
 
@@ -167,7 +167,7 @@ Game_State :: struct {
         distance: f32,
 	},
 
-	balls : [2]Ball,
+	balls : [5]Ball,
 	collision: struct{
         state: collision.State
     },
@@ -215,9 +215,12 @@ tests :: proc (){
         if g.t == start_tick + 1 {
             g.holes[0] = Hole{pos = {3.4, 0, 0}}
 
-            g.balls = [2]Ball{
+            g.balls = [5]Ball{
                 Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {12.6, 0, -0.9}, name = "P1", radius = BALL_RADIUS},
                 Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {6.1, 0, 0.5}, name = "P2", radius = BALL_RADIUS},
+                Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {-12.6, 5, -0.9}, name = "P1", radius = BALL_RADIUS},
+                Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {-6.1, 0, 0.5}, name = "P2", radius = BALL_RADIUS},
+                Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {-1.1, 0, 5}, name = "P2", radius = BALL_RADIUS},
             }
         }
 
@@ -243,24 +246,6 @@ tests :: proc (){
 			fmt.printfln("All balls settled at g.t=%d (%.2fs)", g.t, f32(g.t) * DELTA)
 			return // done
 		}
-
-    }
-    start_tick = 1000
-	if start_tick < g.t && g.t < start_tick + 1000{
-        // TODO Convert to ravn _update proc
-        // --- scenario 3: straight shot into a wall, checking bounce behavior ---
-        if g.t == start_tick + 1 {
-            fmt.println()
-            fmt.println("=== Scenario 3: wall-hit behavior ===")
-            g.holes[2] = Hole{pos = {999, 0, 999}} // far away, irrelevant to this test
-            g.balls = [2]Ball{Ball{pos = {0, BALL_RADIUS, 0}, vel = {5.0, 0, 0}, name = "into_wall"}, Ball{}}
-            fmt.printfln("g.t=  0  pos=%v vel=%v", g.balls[0].pos, g.balls[0].vel)
-        }
-        tick(g.balls[0:0], g.holes[2], DELTA)
-        free_all(context.temp_allocator)
-        if g.t % 10 == 0 || g.t < start_tick + 5 {
-            fmt.printfln("g.t=%3d  pos=%v vel=%v", g.t, g.balls[0].pos, g.balls[0].vel)
-        }
 
     }
 }

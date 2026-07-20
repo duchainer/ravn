@@ -611,7 +611,7 @@ raph_collide_sphere_swept :: proc(
     max_sweeps      := 4,
     restitution     := f32(0.6),
     impact_threshold:= f32(0.3),
-) -> (new_pos: [3]f32, new_vel: [3]f32, contacts: []Contact) {
+) -> (new_pos: [3]f32, new_vel: [3]f32) {
     pos := pos
     vel := vel
 
@@ -619,7 +619,7 @@ raph_collide_sphere_swept :: proc(
     range := linalg.length(vel * step.delta)
 
     overlap_pos: [3]f32
-    // contacts: []Contact
+    contacts: []Contact
 
     for i in 0..<max_sweeps {
         // overlap_pos, vel, contacts = collide_sphere(pos, vel, rad, ignore_layers, allocator = context.temp_allocator)
@@ -627,7 +627,7 @@ raph_collide_sphere_swept :: proc(
         //     pos = overlap_pos
         // }
 
-        pos, vel, contacts= _solve_sphere_contacts_position_based(pos, vel, rad = rad, allocator = context.temp_allocator)
+        pos, vel = _solve_sphere_contacts_position_based(pos, vel, rad = rad, allocator = context.temp_allocator)
 
         dir := linalg.normalize0(vel)
 
@@ -640,7 +640,7 @@ raph_collide_sphere_swept :: proc(
 
         if !sweep_hit {
             pos += dir * range
-            return pos, vel, contacts
+            return pos, vel
         }
 
         pos += dir * max(sweep.t - 0.001, 0.0)
@@ -659,7 +659,7 @@ raph_collide_sphere_swept :: proc(
         }
     }
 
-    return pos, vel, contacts
+    return pos, vel
 
     // Hacky
     _solve_sphere_contacts_position_based :: proc(
@@ -669,8 +669,8 @@ raph_collide_sphere_swept :: proc(
         max_contacts    := 8,
         max_triangles   := 32,
         allocator       := context.temp_allocator,
-    ) -> (new_pos: [3]f32, new_vel: [3]f32, contacts: []Contact) {
-        contacts = find_contacts_sphere(
+    ) -> (new_pos: [3]f32, new_vel: [3]f32) {
+        contacts := find_contacts_sphere(
             pos = pos,
             rad = rad,
             max_contacts = max_contacts,
@@ -685,7 +685,7 @@ raph_collide_sphere_swept :: proc(
 
         new_vel = vel + (new_pos - pos)
 
-        return new_pos, new_vel, contacts
+        return new_pos, new_vel
     }
 }
 
