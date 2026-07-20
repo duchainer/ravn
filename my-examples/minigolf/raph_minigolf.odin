@@ -4,7 +4,7 @@ import "core:math"
 import "core:math/linalg"
 // import "core:math/rand"
 
-import rv "../../."
+import rv "../.."
 // import audio "../../audio"
 import platform "../../platform"
 import coll "../../collision"
@@ -14,7 +14,7 @@ import base "../../base/"
 _ :: base
 
 State :: struct {
-	cam:                  struct {
+	cam: struct {
 		pos: [3]f32,
 		rot: [3]f32,
 		fov: f32,
@@ -216,6 +216,7 @@ _update :: proc(hot_state: rawptr) -> rawptr{
     update = _update,
     shutdown = _shutdown,
 }
+
 main :: proc(){
     rv.run_main_loop(_module_desc)
 }
