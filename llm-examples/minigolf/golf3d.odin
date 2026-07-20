@@ -1,8 +1,12 @@
+#+feature using-stmt
 package golf3d
 
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+
+import rv "../.."
+import platform "../../platform"
 import collision "../../collision"
 
 // ---- constants -------------------------------------------------------
@@ -108,9 +112,8 @@ tick :: proc(balls: []Ball, hole: Hole, dt: f32) {
 	// Course is static, but ravn's collision step wants its shape list
 	// rebuilt every step (see collision.odin: shape_data is per-step,
 	// reset in begin_step and BVH-built in end_step).
-	collision.begin_step(dt)
+
 	register_course()
-	collision.end_step()
 
 	for &ball in balls {
 		tick_ball(&ball, hole, dt)
@@ -131,31 +134,62 @@ all_settled :: proc(balls: []Ball) -> bool {
 
 // ---- main -------------------------------------------------------
 
-main :: proc() {
-	state: collision.State
-	collision.init(&state)
-	defer collision.shutdown()
+Game_State :: struct {
+	balls : [2]Ball,
+	collision: struct{
+        state: collision.State
+    },
+    t: i64,
+}
 
-	hole := Hole{pos = {3.4, 0, 0}}
-	balls := [2]Ball{
+g: ^Game_State
+
+_init :: proc(){
+	platform.set_window_title(rv.get_window(), "Raph Mini golf test 1")
+
+    g = new(Game_State)
+
+	g.balls = [2]Ball{
 		Ball{pos = {-3.5, BALL_RADIUS, 1.2}, vel = {2.6, 0, -0.9}, name = "P1"},
 		Ball{pos = {-3.5, BALL_RADIUS, -1.2}, vel = {3.1, 0, 0.5}, name = "P2"},
 	}
 
-	fmt.println("=== Mini Golf 3D prototype (ravn collision.collide_sphere_swept) ===")
-	fmt.printfln("Course: x=[-%.1f,%.1f] z=[-%.1f,%.1f], hole at %v", COURSE_HALF_X, COURSE_HALF_X, COURSE_HALF_Z, COURSE_HALF_Z, hole.pos)
-	fmt.println()
+    g.t = 0
 
-	MAX_TICKS :: 60 * 20
+	collision.init(&g.collision.state)
+}
 
-	for t in 0 ..< MAX_TICKS {
+_shutdown :: proc(){
+	collision.shutdown()
+
+    free(g)
+}
+
+hole :: Hole{pos = {3.4, 0, 0}}
+MAX_TICKS :: 60 * 20
+TEST_NUMBER :: 1
+_update :: proc(hot_state: rawptr) -> rawptr{
+    rv.perf_scope()
+
+    // Only called on hot-reload
+    if hot_state != nil{
+        g = cast(^Game_State)hot_state
+    }
+
+	when TEST_NUMBER == 1{
+        using g
+	    if g.t == MAX_TICKS{
+            fmt.println()
+            fmt.printfln("Final: P1 sunk=%v pos=%v   P2 sunk=%v pos=%v", balls[0].sunk, balls[0].pos, balls[1].sunk, balls[1].pos)
+        }
+	    if g.t > MAX_TICKS do return &g // done
 		tick(balls[:], hole, DELTA)
 		free_all(context.temp_allocator) // collision package uses temp_allocator internally each step
 
-		if t % 30 == 0 || t <= 3 {
+		if g.t % 30 == 0 || g.t <= 3 {
 			fmt.printfln(
-				"t=%3d (%.2fs)  P1 pos=(%.2f,%.2f,%.2f) vel=(%.2f,%.2f,%.2f) sunk=%v  |  P2 pos=(%.2f,%.2f,%.2f) vel=(%.2f,%.2f,%.2f) sunk=%v",
-				t, f32(t) * DELTA,
+				"g.t=%3d (%.2fs)  P1 pos=(%.2f,%.2f,%.2f) vel=(%.2f,%.2f,%.2f) sunk=%v  |  P2 pos=(%.2f,%.2f,%.2f) vel=(%.2f,%.2f,%.2f) sunk=%v",
+				g.t, f32(g.t) * DELTA,
 				balls[0].pos.x, balls[0].pos.y, balls[0].pos.z, balls[0].vel.x, balls[0].vel.y, balls[0].vel.z, balls[0].sunk,
 				balls[1].pos.x, balls[1].pos.y, balls[1].pos.z, balls[1].vel.x, balls[1].vel.y, balls[1].vel.z, balls[1].sunk,
 			)
@@ -163,14 +197,12 @@ main :: proc() {
 
 		if all_settled(balls[:]) {
 			fmt.println()
-			fmt.printfln("All balls settled at t=%d (%.2fs)", t, f32(t) * DELTA)
-			break
+			fmt.printfln("All balls settled at g.t=%d (%.2fs)", g.t, f32(g.t) * DELTA)
+			return &g // done
 		}
 	}
-
-	fmt.println()
-	fmt.printfln("Final: P1 sunk=%v pos=%v   P2 sunk=%v pos=%v", balls[0].sunk, balls[0].pos, balls[1].sunk, balls[1].pos)
-
+    when TEST_NUMBER == 2 {
+    // TODO Convert to ravn _update proc
 	// --- scenario 2: aimed shot, should sink ---
 	fmt.println()
 	fmt.println("=== Scenario 2: aimed capture check ===")
@@ -181,7 +213,7 @@ main :: proc() {
 	dist2 := linalg.length(hole2.pos - start2)
 	aimed_speed := math.sqrt((CAPTURE_SPEED*0.7)*(CAPTURE_SPEED*0.7) + 2*ROLLING_FRICTION_DECEL*dist2)
 	aimed_arr := [1]Ball{Ball{pos = start2, vel = dir2 * aimed_speed, name = "aimed"}}
-	for t in 0 ..< 600 {
+	for g.t in 0 ..< 600 {
 		tick(aimed_arr[:], hole2, DELTA)
 		free_all(context.temp_allocator)
 		if aimed_arr[0].sunk || linalg.length([2]f32{aimed_arr[0].vel.x, aimed_arr[0].vel.z}) == 0 {
@@ -190,17 +222,41 @@ main :: proc() {
 	}
 	fmt.printfln("aimed: sunk=%v final_pos=%v", aimed_arr[0].sunk, aimed_arr[0].pos)
 
+    }
+    when TEST_NUMBER == 3 {
+    // TODO Convert to ravn _update proc
 	// --- scenario 3: straight shot into a wall, checking bounce behavior ---
 	fmt.println()
 	fmt.println("=== Scenario 3: wall-hit behavior ===")
 	wall_hole := Hole{pos = {999, 0, 999}} // far away, irrelevant to this test
 	wall_arr := [1]Ball{Ball{pos = {0, BALL_RADIUS, 0}, vel = {5.0, 0, 0}, name = "into_wall"}}
-	fmt.printfln("t=  0  pos=%v vel=%v", wall_arr[0].pos, wall_arr[0].vel)
-	for t in 1 ..< 90 {
+	fmt.printfln("g.t=  0  pos=%v vel=%v", wall_arr[0].pos, wall_arr[0].vel)
+	for g.t in 1 ..< 90 {
 		tick(wall_arr[:], wall_hole, DELTA)
 		free_all(context.temp_allocator)
-		if t % 10 == 0 || t < 5 {
-			fmt.printfln("t=%3d  pos=%v vel=%v", t, wall_arr[0].pos, wall_arr[0].vel)
+		if g.t % 10 == 0 || g.t < 5 {
+			fmt.printfln("g.t=%3d  pos=%v vel=%v", g.t, wall_arr[0].pos, wall_arr[0].vel)
 		}
 	}
+
+    }
+
+    return &g
+}
+
+@export _module_desc := rv.Module_Desc{
+    state_size = size_of(Game_State),
+    init = _init,
+    update = _update,
+    shutdown = _shutdown,
+}
+
+main :: proc() {
+
+	fmt.println("=== Mini Golf 3D prototype (ravn collision.collide_sphere_swept) ===")
+	fmt.printfln("Course: x=[-%.1f,%.1f] z=[-%.1f,%.1f], hole at %v", COURSE_HALF_X, COURSE_HALF_X, COURSE_HALF_Z, COURSE_HALF_Z, hole.pos)
+	fmt.println()
+
+
+    rv.run_main_loop(_module_desc)
 }
