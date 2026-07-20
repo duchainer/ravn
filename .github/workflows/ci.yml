@@ -43,6 +43,7 @@ jobs:
             sudo apt-get install -y clang llvm
         - name: Set up Odin
           run: |
+            rm -rf Odin # When using local github action with act, make sure we don't fail on clone
             git clone https://github.com/odin-lang/Odin.git --depth 1 --single-branch --branch=master
             cd Odin
             make
