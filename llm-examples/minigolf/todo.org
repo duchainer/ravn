@@ -1,0 +1,10 @@
+#+title: Todo
+* TODO different bounce for ground and walls
+
+Might need to have different restitution depending on collider, maybe?
+But for that, we'll need to provide some collider id to restitution or
+something, so maybe we need to have the collider be the index in the
+collider shape array?
+
+But this TODO might be fine to skip for now, and focus on Minimum for a full level
+and then multiplayer instead
