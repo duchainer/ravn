@@ -8,6 +8,7 @@ import "core:math/linalg"
 import rv "../.."
 import platform "../../platform"
 import collision "../../collision"
+import raph_physics "../../my-packages/raph_physics/"
 
 // ---- constants -------------------------------------------------------
 
@@ -119,7 +120,7 @@ tick_ball :: proc(ball: ^Ball, hole: Hole, dt: f32) {
 	ball.vel = apply_rolling_friction_xz(ball.vel, dt)
     old_vel := ball.vel
 
-	new_pos, new_vel := collision.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.9)
+	new_pos, new_vel := raph_physics.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.9)
     ball.pos = new_pos
     ball.vel = new_vel
 
