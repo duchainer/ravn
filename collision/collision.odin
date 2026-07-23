@@ -437,6 +437,7 @@ add_sphere_shape :: proc(
     rad:            f32,
     #any_int layer: u8 = 0,
     #any_int id:    u64 = 0,
+    restitution:    f32 = 0.6,
 ) {
     _add_shape({
         kind = .Sphere,
@@ -447,6 +448,7 @@ add_sphere_shape :: proc(
         handle = {},
         layer = layer,
         id = id,
+        restitution = restitution,
     })
 }
 
@@ -455,6 +457,7 @@ add_capsule_shape :: proc(
     rad:            f32,
     #any_int layer: u8 = 0,
     #any_int id:    u64 = 0,
+    restitution:    f32 = 0.6,
 ) {
     _add_shape({
         kind = .Capsule,
@@ -465,6 +468,7 @@ add_capsule_shape :: proc(
         handle = {},
         layer = layer,
         id = id,
+        restitution = restitution,
     })
 }
 
@@ -474,6 +478,7 @@ add_box_shape :: proc(
     rad:            f32 = 0.0,
     #any_int layer: u8 = 0,
     #any_int id:    u64 = 0,
+    restitution:    f32 = 0.6,
 ) {
     _add_shape({
         kind = .Aligned_Box,
@@ -484,6 +489,7 @@ add_box_shape :: proc(
         handle = {},
         layer = layer,
         id = id,
+        restitution = restitution,
     })
 }
 
@@ -494,6 +500,7 @@ add_oriented_box_shape :: proc(
     rad:            f32 = 0.0,
     #any_int layer: u8 = 0,
     #any_int id:    u64 = 0,
+    restitution:    f32 = 0.6,
 ) {
     _add_shape({
         kind = .Oriented_Box,
@@ -504,6 +511,7 @@ add_oriented_box_shape :: proc(
         handle = {},
         layer = layer,
         id = id,
+        restitution = restitution,
     })
 }
 
@@ -515,6 +523,7 @@ add_mesh_shape :: proc(
     rad:            f32 = 0.0,
     #any_int layer: u8 = 0,
     #any_int id:    u64 = 0,
+    restitution:    f32 = 0.6,
 
 ) {
     mesh, ok := get_mesh(handle)
@@ -531,6 +540,7 @@ add_mesh_shape :: proc(
         handle = handle,
         layer = layer,
         id = id,
+        restitution = restitution,
     })
 }
 

@@ -11,7 +11,7 @@ import "../../collision/"
 
 // Adapted from collide_sphere_swept from ravn/collision/collision.odin commit
 // Immediate-mode continous shape-swept collision
-// TODO collider index or id for contacts and restitution
+// NOTE: Per-shape restitution is now looked up from sweep.shape index
 raph_collide_sphere_swept :: proc(
     pos:            [3]f32,
     vel:            [3]f32,
@@ -55,12 +55,18 @@ raph_collide_sphere_swept :: proc(
         pos += dir * max(sweep.t - 0.001, 0.0)
         range -= sweep.t
 
-        // Bounce off the collision surface with restitution, but only on real
-        // impacts (not gentle resting contacts which would cause jitter)
+        // Bounce off the collision surface with per-shape restitution, but only
+        // on real impacts (not gentle resting contacts which would cause jitter)
         // impact_threshold == 0, gives us bouncy/jitter balls over the ground
+        shape_restitution := restitution
+        if sweep.shape >= 0 {
+            if shape, shape_ok := collision.get_shape(sweep.shape); shape_ok {
+                shape_restitution = shape.restitution
+            }
+        }
         vn := linalg.dot(vel, sweep.normal)
         if vn < -impact_threshold {
-            vel -= sweep.normal * vn * (1 + restitution)
+            vel -= sweep.normal * vn * (1 + shape_restitution)
         }
 
         if range <= 0.001 {

@@ -25,6 +25,7 @@ Shape :: struct #all_or_none #align(64) {
     // mass_inv:       f32,
     // ignored_layers: bit_set[0..<NUM_LAYERS],
     id:             u64,
+    restitution:    f32,
     layer:          u8,
     kind:           Shape_Kind,
 }
