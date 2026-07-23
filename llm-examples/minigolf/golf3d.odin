@@ -38,7 +38,7 @@ MAX_SHOT_SPEED :: f32(20.0)
 SHOT_POWER_SCALE :: f32(4.0)
 OSCILLATION_FREQ :: f32(4.0)
 OSCILLATION_FACTOR :: f32(0.25)
-BALL_PICK_RADIUS :: f32(0.25)
+BALL_PICK_RADIUS :: f32(0.5)
 
 // ---- types -------------------------------------------------------
 
@@ -168,8 +168,10 @@ tick_ball :: proc(ball: ^Ball, hole: Hole, dt: f32) {
 		ball.vel = {0, 0, 0}
 	}
 
-	// Mark as ready to shoot when nearly stationary and not sunk
-	if !ball.sunk && linalg.length2([2]f32{ball.vel.x, ball.vel.z}) < STOP_EPSILON * STOP_EPSILON && math.abs(ball.vel.y) < STOP_EPSILON {
+	// Mark as ready to shoot when nearly stationary on the ground.
+	// We only check horizontal speed; Y velocity never hits exactly zero
+	// because the position-based contact solver adds micro-jitter.
+	if !ball.sunk && linalg.length2([2]f32{ball.vel.x, ball.vel.z}) < STOP_EPSILON * STOP_EPSILON {
 		ball.ready = true
 	} else {
 		ball.ready = false
@@ -484,6 +486,7 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 			g.drag.state = .Dragging
 			g.drag.ball_idx = idx
 			g.drag.start_ground = ground_pos
+			fmt.printfln("Drag started on ball %d at ground=%v", idx, ground_pos)
 		}
 	}
 
@@ -551,6 +554,13 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 			col := ball.sunk ? [4]f32{0.5, 0.5, 0.5, 1} : [4]f32{1, 1, 1, 1}
 			rv.draw_mesh(sphere, pos = ball.pos, scale = ball.radius, col = col)
 		}
+
+		// Draw selection ring on the ground around ready balls
+			for ball in g.balls {
+				if ball == {} || ball.sunk || !ball.ready { continue }
+				ring_rad := ball.radius * 2.5
+				rv.draw_line_circle(ball.pos + {0, 0.01, 0}, rad = {ring_rad, ring_rad}, col = [4]f32{0, 1, 0, 0.6}, segments = 16)
+			}
 
 		// Draw hole as a dark circle on the ground
 		hole := g.holes[g.active_hole]
