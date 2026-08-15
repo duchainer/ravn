@@ -102,8 +102,9 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 		}
 	}
 
-	// 2. Sweep ray against collision shapes
-	shape_sweep, shape_hit := coll.sweep_point(camera.pos, mouse_ray, range = 100)
+	// 2. Sphere-sweep against shapes (extra radius = bigger interactable area)
+	INTERACT_RAD :: f32(0.5)
+	shape_sweep, shape_hit := coll.sweep_sphere(camera.pos, mouse_ray, rad = INTERACT_RAD, range = 100)
 	shape_hit_pos := camera.pos + mouse_ray * shape_sweep.t
 
 	// ---- draw 3D -------------------------------------------------
@@ -122,6 +123,14 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 	rv.draw_mesh(sphere, pos = {0, 1, 0}, scale = 1.0, col = {0.8, 0.3, 0.3, 1})
 	rv.draw_mesh(cube,   pos = {-3, 0.5, 2}, scale = {1, 0.5, 1}, col = {0.3, 0.3, 0.8, 1})
 	rv.draw_mesh(cube,   pos = { 3, 0.5, 2}, scale = {1, 0.5, 1}, col = {0.3, 0.3, 0.8, 1})
+
+	// Draw interaction radius wireframes around shapes
+	shape_centers := [3][3]f32{{0, 1, 0}, {-3, 0.5, 2}, {3, 0.5, 2}}
+	rv.set_draw_fill(.Wire)
+	for pos in shape_centers {
+		rv.draw_mesh(sphere, pos = pos, scale = INTERACT_RAD, col = {1, 1, 0, 0.15})
+	}
+	rv.set_draw_fill(.All)
 
 	// Draw mouse ray
 	rv.draw_line(camera.pos, camera.pos + mouse_ray * 50, col = [4]f32{0, 1, 0, 0.5})
