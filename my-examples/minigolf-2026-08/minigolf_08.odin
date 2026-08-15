@@ -16,7 +16,7 @@ DELTA :: f32(1.0 / 60.0)
 
 BALL_RADIUS :: f32(0.06)
 HOLE_RADIUS :: f32(0.18)
-HOLE_DEPTH :: f32(0.12)
+HOLE_DEPTH :: f32(0.25)
 HOLE_BEVEL_ANGLE :: f32(35.0 * math.PI / 180.0)
 CAPTURE_SPEED :: f32(1.2)
 
@@ -208,7 +208,7 @@ register_course :: proc() {
 	// Hole bottom (flat floor so ball doesn't fall forever)
 	coll.add_box_shape(
 		hole.pos + {0, -HOLE_DEPTH - 0.005, 0},
-		{HOLE_RADIUS, 0.005, HOLE_RADIUS},
+		{HOLE_RADIUS * 0.8, 0.005, HOLE_RADIUS * 0.8},
 		restitution = 0.1, id = 99,
 	)
 
@@ -529,15 +529,15 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 				rv.draw_line_circle(ball.pos + {0, 0.01, 0}, rad = {ring_rad, ring_rad}, col = [4]f32{0, 1, 0, 0.6}, segments = 16)
 			}
 
-		// Draw hole: dark bottom + bevel ring
+		// Draw hole: dark cylinder bottom + bevel ring
 		hole := g.holes[g.active_hole]
-		// Hole bottom (dark)
-		rv.draw_mesh(sphere, pos = hole.pos + {0, -HOLE_DEPTH + 0.01, 0}, scale = HOLE_RADIUS, col = [4]f32{0.05, 0.05, 0.05, 1})
+		// Dark cylinder at hole bottom
+		rv.draw_mesh(cube, pos = hole.pos + {0, -HOLE_DEPTH + 0.005, 0}, scale = {HOLE_RADIUS * 0.8, 0.01, HOLE_RADIUS * 0.8}, col = [4]f32{0.02, 0.02, 0.02, 1})
 		// Bevel rim (yellow ring to show the slope boundary)
 		bevel_r := HOLE_RADIUS + HOLE_DEPTH / math.tan(HOLE_BEVEL_ANGLE)
 		rv.draw_line_circle(hole.pos + {0, 0.01, 0}, rad = {bevel_r, bevel_r}, col = [4]f32{0.8, 0.8, 0, 0.5}, segments = 24)
-		// Hole inner rim
-		rv.draw_line_circle(hole.pos + {0, -HOLE_DEPTH + 0.01, 0}, rad = {HOLE_RADIUS, HOLE_RADIUS}, col = [4]f32{0.3, 0.3, 0.3, 0.5}, segments = 24)
+		// Hole inner rim (at bevel inner edge)
+		rv.draw_line_circle(hole.pos + {0, -HOLE_DEPTH * 0.3 + 0.01, 0}, rad = {HOLE_RADIUS, HOLE_RADIUS}, col = [4]f32{0.3, 0.3, 0.3, 0.5}, segments = 24)
 
 		// Draw labels above colliders
 		if g.show_labels {
