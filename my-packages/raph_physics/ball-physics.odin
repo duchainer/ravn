@@ -57,7 +57,6 @@ raph_collide_sphere_swept :: proc(
 
         // Bounce off the collision surface with per-shape restitution, but only
         // on real impacts (not gentle resting contacts which would cause jitter)
-        // impact_threshold == 0, gives us bouncy/jitter balls over the ground
         shape_restitution := restitution
         if sweep.shape >= 0 {
             if shape, shape_ok := collision.get_shape(sweep.shape); shape_ok {
@@ -67,6 +66,9 @@ raph_collide_sphere_swept :: proc(
         vn := linalg.dot(vel, sweep.normal)
         if vn < -impact_threshold {
             vel -= sweep.normal * vn * (1 + shape_restitution)
+        } else if vn < 0 {
+            // Resting contact: zero out any velocity pushing into the surface
+            vel -= sweep.normal * vn
         }
 
         if range <= 0.001 {
@@ -98,7 +100,7 @@ raph_collide_sphere_swept :: proc(
             new_pos += contact.normal * max(0.0, -contact.separation * 0.5)
         }
 
-        new_vel = vel + (new_pos - pos)
+        new_vel = vel
 
         return new_pos, new_vel
     }
