@@ -7,7 +7,7 @@ import "core:time"
 
 import rv "../.."
 import platform "../../platform"
-import collision "../../collision"
+import coll "../../collision"
 import raph_physics "../../my-packages/raph_physics/"
 
 // ---- physics / course constants -------------------------------------------------------
@@ -15,7 +15,9 @@ import raph_physics "../../my-packages/raph_physics/"
 DELTA :: f32(1.0 / 60.0)
 
 BALL_RADIUS :: f32(0.06)
-HOLE_RADIUS :: f32(0.09)
+HOLE_RADIUS :: f32(0.18)
+HOLE_DEPTH :: f32(0.12)
+HOLE_BEVEL_ANGLE :: f32(35.0 * math.PI / 180.0)
 CAPTURE_SPEED :: f32(1.2)
 
 ROLLING_FRICTION_DECEL :: f32(0.9)
@@ -27,6 +29,14 @@ COURSE_HALF_Z :: f32(2.5)
 WALL_HEIGHT :: f32(0.30)
 WALL_THICK :: f32(0.05)
 GROUND_THICK :: f32(0.20)
+
+// Size of the square gap we cut in the ground boxes (slightly larger than bevel)
+HOLE_GAP_HALF :: f32(0.55)
+
+// Computed at runtime: bevel outer radius
+hole_bevel_radius :: proc() -> f32 {
+	return HOLE_RADIUS + HOLE_DEPTH / math.tan(HOLE_BEVEL_ANGLE)
+}
 
 // ---- gameplay constants -------------------------------------------------------
 
@@ -81,8 +91,12 @@ Game_State :: struct {
 	boxes:         [8]Box,
 
 	collision: struct {
-		state: collision.State
+		state: coll.State
 	},
+
+	// Hole collision mesh
+	hole_arena: coll.Arena_Handle,
+	hole_mesh:  coll.Mesh_Handle,
 
 	// Time
 	t:             i64,
@@ -102,18 +116,82 @@ Game_State :: struct {
 g: ^Game_State
 
 
+// ---- mesh generation -------------------------------------------------------
+
+generate_bowl_mesh :: proc() -> (verts: [][3]f32, tris: [][3]u16) {
+	segments :: 16
+	R_outer := hole_bevel_radius()
+	R_hole := HOLE_RADIUS
+	depth := HOLE_DEPTH
+
+	verts = make([][3]f32, segments * 2)
+	tris = make([][3]u16, segments * 2)
+
+	for i in 0..<segments {
+		angle := f32(i) * 2.0 * math.PI / f32(segments)
+		c := math.cos(angle)
+		s := math.sin(angle)
+
+		// Outer ring (top of bevel, at ground level)
+		verts[i] = [3]f32{R_outer * c, 0, R_outer * s}
+
+		// Inner ring (bottom of bevel / top of cylindrical pit)
+		verts[segments + i] = [3]f32{R_hole * c, -depth, R_hole * s}
+
+		// Two triangles per segment (quad)
+		next := (i + 1) % segments
+		tris[i * 2 + 0] = [3]u16{u16(i), u16(next), u16(segments + i)}
+		tris[i * 2 + 1] = [3]u16{u16(next), u16(segments + next), u16(segments + i)}
+	}
+
+	return verts, tris
+}
+
 // ---- course geometry -------------------------------------------------------
 
 register_course :: proc() {
-	// Ground: top surface sits exactly at y = 0.
-	g.boxes[0] = {
-		pos         = {0, -GROUND_THICK * 0.5, 0},
-		scale       = {COURSE_HALF_X, GROUND_THICK * 0.5, COURSE_HALF_Z},
-		color       = [4]f32{0, 0.8, 0, 1},
-		restitution = 0.3,
-		collider_id = 0,
+	hole := g.holes[g.active_hole]
+	hx := hole.pos.x
+	hz := hole.pos.z
+	gap := HOLE_GAP_HALF
+
+	// Split ground into 4 pieces with a square gap at the active hole.
+	// Left piece
+	coll.add_box_shape(
+		{(-COURSE_HALF_X + hx - gap) * 0.5, -GROUND_THICK * 0.5, 0},
+		{(hx - gap + COURSE_HALF_X) * 0.5, GROUND_THICK * 0.5, COURSE_HALF_Z},
+		restitution = 0.3, id = 0,
+	)
+	// Right piece
+	coll.add_box_shape(
+		{(hx + gap + COURSE_HALF_X) * 0.5, -GROUND_THICK * 0.5, 0},
+		{(COURSE_HALF_X - hx - gap) * 0.5, GROUND_THICK * 0.5, COURSE_HALF_Z},
+		restitution = 0.3, id = 0,
+	)
+	// Front piece (between left and right, front of hole)
+	coll.add_box_shape(
+		{hx, -GROUND_THICK * 0.5, (-COURSE_HALF_Z + hz - gap) * 0.5},
+		{gap, GROUND_THICK * 0.5, (hz - gap + COURSE_HALF_Z) * 0.5},
+		restitution = 0.3, id = 0,
+	)
+	// Back piece (between left and right, back of hole)
+	coll.add_box_shape(
+		{hx, -GROUND_THICK * 0.5, (hz + gap + COURSE_HALF_Z) * 0.5},
+		{gap, GROUND_THICK * 0.5, (COURSE_HALF_Z - hz - gap) * 0.5},
+		restitution = 0.3, id = 0,
+	)
+
+	// Hole bevel mesh (sloped walls)
+	if g.hole_mesh.index != 0 {
+		coll.add_mesh_shape(g.hole_mesh, hole.pos, restitution = 0.2)
 	}
-	collision.add_box_shape(g.boxes[0].pos, g.boxes[0].scale, restitution = g.boxes[0].restitution, id = g.boxes[0].collider_id)
+
+	// Hole bottom (flat floor so ball doesn't fall forever)
+	coll.add_box_shape(
+		hole.pos + {0, -HOLE_DEPTH - 0.005, 0},
+		{HOLE_RADIUS, 0.005, HOLE_RADIUS},
+		restitution = 0.1, id = 99,
+	)
 
 	// Four perimeter walls with different restitutions.
 	g.boxes[1] = {
@@ -123,7 +201,7 @@ register_course :: proc() {
 		restitution = 0.95,
 		collider_id = 1,
 	}
-	collision.add_box_shape(g.boxes[1].pos, g.boxes[1].scale, restitution = g.boxes[1].restitution, id = g.boxes[1].collider_id)
+	coll.add_box_shape(g.boxes[1].pos, g.boxes[1].scale, restitution = g.boxes[1].restitution, id = g.boxes[1].collider_id)
 
 	g.boxes[2] = {
 		pos         = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, 0},
@@ -132,7 +210,7 @@ register_course :: proc() {
 		restitution = 0.7,
 		collider_id = 2,
 	}
-	collision.add_box_shape(g.boxes[2].pos, g.boxes[2].scale, restitution = g.boxes[2].restitution, id = g.boxes[2].collider_id)
+	coll.add_box_shape(g.boxes[2].pos, g.boxes[2].scale, restitution = g.boxes[2].restitution, id = g.boxes[2].collider_id)
 
 	g.boxes[3] = {
 		pos         = {0, WALL_HEIGHT * 0.5, -COURSE_HALF_Z - WALL_THICK},
@@ -141,7 +219,7 @@ register_course :: proc() {
 		restitution = 0.5,
 		collider_id = 3,
 	}
-	collision.add_box_shape(g.boxes[3].pos, g.boxes[3].scale, restitution = g.boxes[3].restitution, id = g.boxes[3].collider_id)
+	coll.add_box_shape(g.boxes[3].pos, g.boxes[3].scale, restitution = g.boxes[3].restitution, id = g.boxes[3].collider_id)
 
 	g.boxes[4] = {
 		pos         = {0, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
@@ -150,7 +228,7 @@ register_course :: proc() {
 		restitution = 0.85,
 		collider_id = 4,
 	}
-	collision.add_box_shape(g.boxes[4].pos, g.boxes[4].scale, restitution = g.boxes[4].restitution, id = g.boxes[4].collider_id)
+	coll.add_box_shape(g.boxes[4].pos, g.boxes[4].scale, restitution = g.boxes[4].restitution, id = g.boxes[4].collider_id)
 }
 
 // ---- helpers -------------------------------------------------------
@@ -184,9 +262,10 @@ tick_ball :: proc(ball: ^Ball, hole: Hole, dt: f32) {
 
 	horiz_dist := linalg.length([2]f32{ball.pos.x - hole.pos.x, ball.pos.z - hole.pos.z})
 	speed := linalg.length(ball.vel)
-	if horiz_dist < HOLE_RADIUS && speed < CAPTURE_SPEED {
+	// Capture ball when it falls into the physical hole
+	if ball.pos.y < 0 && horiz_dist < HOLE_RADIUS && speed < CAPTURE_SPEED {
 		ball.sunk = true
-		ball.pos = hole.pos + {0, BALL_RADIUS, 0}
+		ball.pos = hole.pos + {0, BALL_RADIUS - HOLE_DEPTH, 0}
 		ball.vel = {0, 0, 0}
 	}
 
@@ -225,7 +304,15 @@ _init :: proc() {
 	g.t = 0
 	g.game_time = 0
 
-	collision.init(&g.collision.state)
+	coll.init(&g.collision.state)
+
+	// Create hole bowl mesh (shared by all holes, positioned per-hole)
+	arena_ok: bool
+	g.hole_arena, arena_ok = coll.create_arena(1024 * 1024)
+	assert(arena_ok)
+
+	verts, tris := generate_bowl_mesh()
+	g.hole_mesh, _ = coll.create_mesh(g.hole_arena, verts, tris)
 
 	// Initialize hole positions
 	g.holes[0] = Hole{pos = {3.4, 0, 0}}
@@ -263,7 +350,7 @@ start_hole :: proc(hole_idx: int) {
 }
 
 _shutdown :: proc() {
-	collision.shutdown()
+	coll.shutdown()
 	free(g)
 }
 
@@ -398,12 +485,17 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 		rv.set_draw_texture(rv.get_builtin_texture(.Default))
 
 		cube := rv.get_builtin_mesh(.Cube)
-		for box in g.boxes {
+		sphere := rv.get_builtin_mesh(.UV_Sphere_1)
+
+		// Ground visual (single large box, even though collision is split)
+		rv.draw_mesh(cube, pos = {0, -GROUND_THICK * 0.5, 0}, scale = {COURSE_HALF_X, GROUND_THICK * 0.5, COURSE_HALF_Z}, col = [4]f32{0, 0.8, 0, 1})
+
+		for i in 1..<len(g.boxes) {
+			box := g.boxes[i]
 			if box.color.w <= 0 { continue }
 			rv.draw_mesh(cube, box.pos, box.scale, col = box.color)
 		}
 
-		sphere := rv.get_builtin_mesh(.UV_Sphere_1)
 		for ball in g.balls {
 			if ball == {} { continue }
 			col := ball.sunk ? [4]f32{0.5, 0.5, 0.5, 1} : [4]f32{1, 1, 1, 1}
@@ -417,9 +509,14 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 				rv.draw_line_circle(ball.pos + {0, 0.01, 0}, rad = {ring_rad, ring_rad}, col = [4]f32{0, 1, 0, 0.6}, segments = 16)
 			}
 
-		// Draw hole as a dark circle on the ground
+		// Draw hole: dark bottom + bevel ring
 		hole := g.holes[g.active_hole]
-		rv.draw_mesh(sphere, pos = hole.pos, scale = HOLE_RADIUS, col = [4]f32{0.1, 0.1, 0.1, 1})
+		// Hole bottom (dark)
+		rv.draw_mesh(sphere, pos = hole.pos + {0, -HOLE_DEPTH + 0.01, 0}, scale = HOLE_RADIUS, col = [4]f32{0.05, 0.05, 0.05, 1})
+		// Bevel rim (yellow ring to show the slope boundary)
+		rv.draw_line_circle(hole.pos + {0, 0.01, 0}, rad = {hole_bevel_radius(), hole_bevel_radius()}, col = [4]f32{0.8, 0.8, 0, 0.5}, segments = 24)
+		// Hole inner rim
+		rv.draw_line_circle(hole.pos + {0, -HOLE_DEPTH + 0.01, 0}, rad = {HOLE_RADIUS, HOLE_RADIUS}, col = [4]f32{0.3, 0.3, 0.3, 0.5}, segments = 24)
 
 		// Draw labels above colliders
 		if g.show_labels {
