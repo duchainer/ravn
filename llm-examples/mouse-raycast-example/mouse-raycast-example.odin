@@ -113,9 +113,12 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 	rv.set_draw_depth(.Depth)
 	rv.set_draw_texture(rv.get_builtin_texture(.Default))
 
-	// Draw demo shapes
+	// Draw ground plane for reference
 	cube := rv.get_builtin_mesh(.Cube)
 	sphere := rv.get_builtin_mesh(.UV_Sphere_1)
+	rv.draw_mesh(cube, pos = {0, -0.01, 0}, scale = {20, 0.01, 20}, col = {0.3, 0.5, 0.3, 1})
+
+	// Draw demo shapes
 	rv.draw_mesh(sphere, pos = {0, 1, 0}, scale = 1.0, col = {0.8, 0.3, 0.3, 1})
 	rv.draw_mesh(cube,   pos = {-3, 0.5, 2}, scale = {1, 0.5, 1}, col = {0.3, 0.3, 0.8, 1})
 	rv.draw_mesh(cube,   pos = { 3, 0.5, 2}, scale = {1, 0.5, 1}, col = {0.3, 0.3, 0.8, 1})

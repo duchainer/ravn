@@ -2962,8 +2962,9 @@ screen_to_world_ray :: proc(pos: [2]f32, cam: Camera) -> [3]f32 {
     p.x = (p.x / f32(get_screen_size().x)) * 2.0 - 1.0
     p.y = 1.0 - 2.0 * (p.y / f32(get_screen_size().y))
 
-    p0 := cam_inv * [4]f32{p.x, p.y, 0.0, 1.0}
-    p1 := cam_inv * [4]f32{p.x, p.y, 1.0, 1.0}
+    // Reverse Z: z=1 is near plane, z=0 is far plane.
+    p0 := cam_inv * [4]f32{p.x, p.y, 1.0, 1.0}
+    p1 := cam_inv * [4]f32{p.x, p.y, 0.0, 1.0}
     p0.xyz /= p0.w
     p1.xyz /= p1.w
 
