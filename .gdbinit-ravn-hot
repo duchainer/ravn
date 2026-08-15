@@ -1,0 +1,10 @@
+# Auto-load shared libraries (needed for hot-reload .so files)
+set auto-solib-add on
+set stop-on-solib-events 0
+
+# Allow setting breakpoints in libraries that haven't loaded yet
+set breakpoint pending on
+
+# Don't paginate output
+set pagination off
+set confirm off

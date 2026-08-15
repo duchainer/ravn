@@ -37,10 +37,11 @@ exec :: proc(str: string) -> bool {
     return true
 }
 
-compile_hot :: proc(pkg: string, pkg_name: string, index: int) {
+compile_hot :: proc(pkg: string, pkg_name: string, index: int, extra_flags: []string) {
     path := ufmt.tprintf("%s%i" + DLL_EXT, pkg_name, index)
     assert(!platform.file_exists(path), ufmt.tprintf("!platform.file_exists(\"%s\")", path))
-    exec(ufmt.tprintf("%s build %s -out:%s -debug -build-mode:dll", ODIN_EXE, pkg, path))
+    extra := strings.join(extra_flags, " ")
+    exec(ufmt.tprintf("%s build %s -out:%s -debug -build-mode:dll %s", ODIN_EXE, pkg, path, extra))
 }
 
 clean_hot :: proc(pkg: string) {

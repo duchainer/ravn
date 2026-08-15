@@ -209,14 +209,14 @@ register_course :: proc() {
 	coll.add_box_shape(
 		hole.pos + {0, -HOLE_DEPTH - 0.005, 0},
 		{HOLE_RADIUS * 0.8, 0.005, HOLE_RADIUS * 0.8},
-		restitution = 0.1, id = 99,
+		restitution = 0.0, id = 99,
 	)
 
 	// Four perimeter walls with different restitutions.
 	g.boxes[1] = {
 		pos         = {-COURSE_HALF_X - WALL_THICK, WALL_HEIGHT * 0.5, 0},
 		scale       = {WALL_THICK, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
-		color       = [4]f32{0.8, 0.8, 0, 1},
+		color       = [4]f32{0.8, 0.8, 1, 1},
 		restitution = 0.95,
 		collider_id = 1,
 	}

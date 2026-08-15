@@ -36,6 +36,7 @@ _command_info := [Command]string {
 Flags :: struct {
     cmd:    Command `args:"pos=0,required" usage:"Only build, don't run"`,
     pkg:    string `args:"pos=1,required" usage:"The Odin package name to run/build"`,
+    extra:  []string,
 }
 
 parse_flags :: proc(params: []string) -> (flags: Flags, ok: bool) {
@@ -85,6 +86,7 @@ parse_flags :: proc(params: []string) -> (flags: Flags, ok: bool) {
         }
 
         flags.pkg = params[1]
+        flags.extra = params[2:]
     }
 
     return flags, true
@@ -112,7 +114,7 @@ main :: proc() {
 
     case .Run_Hot:
         clean_hot(pkg_name)
-        compile_hot(fl.pkg, pkg_name = pkg_name, index = 0)
+        compile_hot(fl.pkg, pkg_name = pkg_name, index = 0, extra_flags = fl.extra)
         hotreload_run(pkg_name, fl.pkg)
         clean_hot(pkg_name)
 
@@ -130,6 +132,6 @@ main :: proc() {
     case .Build_Hot:
         latest, _ := hotreload_find_latest_dll(pkg_name)
         base.log_info("Building %i", latest.index + 1)
-        compile_hot(fl.pkg, pkg_name = pkg_name, index = latest.index + 1)
+        compile_hot(fl.pkg, pkg_name = pkg_name, index = latest.index + 1, extra_flags = fl.extra)
     }
 }
