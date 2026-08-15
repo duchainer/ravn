@@ -83,7 +83,7 @@ git subtree pull --prefix=ravn https://github.com/jakubtomsu/ravn main --squash
 You can run demos from the [examples/](examples) directory with something like the following command:
 ```
 odin run examples\hello
-odin run build -- run_hot examples\hello
+odin run build -- run-hot examples\hello
 ```
 Try the [hello](examples/hello/hello_example.odin) or [Snake Planet game](examples/snake_planet/snake_planet_example.odin) examples!
 
