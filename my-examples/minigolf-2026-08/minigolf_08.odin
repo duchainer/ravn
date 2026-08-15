@@ -90,6 +90,13 @@ Game_State :: struct {
 
 	// Labels toggle
 	show_labels:   bool,
+
+	// Drag state
+	drag: struct {
+		active:      bool,
+		ball_idx:    int,
+		start_ground: [3]f32,
+	},
 }
 
 g: ^Game_State
@@ -311,6 +318,64 @@ _update :: proc(hot_state: rawptr) -> rawptr {
     mat := linalg.matrix3_from_quaternion_f32(cam_rot_quat)
     g.cam.pos = g.cam.target - mat[2] * g.cam.distance
 
+    // Rebuild camera after position update
+    camera = rv.make_perspective_3d_camera(
+        rv.get_screen_size(),
+        g.cam.pos,
+        cam_rot_quat,
+        g.cam.fov,
+    )
+
+    // ---- mouse ground position ------------------------------------
+    mouse_ground: [3]f32
+    mouse_ground_ok := false
+    {
+        mouse_ray := rv.screen_to_world_ray(rv.get_mouse_pos(), camera)
+        if abs(mouse_ray.y) > 0.001 {
+            t := -camera.pos.y / mouse_ray.y
+            if t > 0 {
+                mouse_ground = camera.pos + mouse_ray * t
+                mouse_ground_ok = true
+            }
+        }
+    }
+
+    // ---- click-and-drag shooting ----------------------------------
+    if rv.get_mouse_pressed(.Left) && mouse_ground_ok {
+        // Find nearest ready ball
+        best_idx := -1
+        best_dist := BALL_PICK_RADIUS
+        for i in 0..<g.num_players {
+            ball := g.balls[i]
+            if ball.sunk || !ball.ready { continue }
+            d := linalg.length([2]f32{mouse_ground.x - ball.pos.x, mouse_ground.z - ball.pos.z})
+            if d < best_dist {
+                best_dist = d
+                best_idx = i
+            }
+        }
+        if best_idx >= 0 {
+            g.drag.active = true
+            g.drag.ball_idx = best_idx
+            g.drag.start_ground = mouse_ground
+        }
+    }
+
+    if rv.get_mouse_released(.Left) && g.drag.active {
+        ball := &g.balls[g.drag.ball_idx]
+        pull := ball.pos - mouse_ground
+        pull.y = 0
+        stretch := linalg.length([2]f32{pull.x, pull.z})
+
+        if stretch > MIN_DRAG_DIST {
+            dir := linalg.normalize0([3]f32{pull.x, 0, pull.z})
+            power := clamp(stretch * SHOT_POWER_SCALE, 0, MAX_SHOT_SPEED)
+            ball.vel = dir * power
+            ball.vel.y = 0
+            ball.ready = false
+        }
+        g.drag.active = false
+    }
 
 	// ---- physics tick ---------------------------------------------
 	{
@@ -366,6 +431,16 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 				rv.draw_text(text, label_pos, scale = 0.015, anchor = 0, col = [4]f32{1, 1, 0, 1})
 			}
 		}
+		// Draw drag line
+		if g.drag.active {
+			ball := g.balls[g.drag.ball_idx]
+			if mouse_ground_ok {
+				// Line from ball to mouse ground position
+				rv.draw_line(ball.pos, mouse_ground, col = [4]f32{1, 0, 0, 0.8})
+				// Small sphere at mouse ground position
+				rv.draw_mesh(sphere, pos = mouse_ground, scale = 0.05, col = [4]f32{1, 0, 0, 0.8})
+			}
+		}
 	}
 
 	// ---- UI Draw --------------------------------------------------
@@ -379,7 +454,7 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 
 		rv.draw_text("Mini Golf 3D - Putt Party Clone", {14, y, 0.1}, scale = scale)
 		y += line_h
-		rv.draw_text("TODO LMB drag on ball to shoot  |  RMB orbit  |  Scroll zoom", {14, y, 0.1}, scale = scale - 0.5)
+		rv.draw_text("LMB drag on ball to shoot  |  RMB orbit  |  Scroll zoom", {14, y, 0.1}, scale = scale - 0.5)
 		y += line_h
 		rv.draw_text(fmt.tprintf("Hole %d  |  Tick %d", g.active_hole + 1, g.t), {14, y, 0.1}, scale = scale - 0.5)
 		y += line_h
