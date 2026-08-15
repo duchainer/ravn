@@ -30,13 +30,8 @@ WALL_HEIGHT :: f32(0.30)
 WALL_THICK :: f32(0.05)
 GROUND_THICK :: f32(0.20)
 
-// Size of the square gap we cut in the ground boxes (slightly larger than bevel)
-HOLE_GAP_HALF :: f32(0.55)
-
-// Computed at runtime: bevel outer radius
-hole_bevel_radius :: proc() -> f32 {
-	return HOLE_RADIUS + HOLE_DEPTH / math.tan(HOLE_BEVEL_ANGLE)
-}
+GROUND_GRID_X :: 33
+GROUND_GRID_Z :: 21
 
 // ---- gameplay constants -------------------------------------------------------
 
@@ -94,9 +89,9 @@ Game_State :: struct {
 		state: coll.State
 	},
 
-	// Hole collision mesh
-	hole_arena: coll.Arena_Handle,
-	hole_mesh:  coll.Mesh_Handle,
+	// Ground mesh (regenerated per hole position)
+	ground_arena:  rv.Arena_Handle,
+	ground_mesh:   rv.Mesh_Handle,
 
 	// Time
 	t:             i64,
@@ -118,72 +113,96 @@ g: ^Game_State
 
 // ---- mesh generation -------------------------------------------------------
 
-generate_bowl_mesh :: proc() -> (verts: [][3]f32, tris: [][3]u16) {
-	segments :: 16
-	R_outer := hole_bevel_radius()
-	R_hole := HOLE_RADIUS
-	depth := HOLE_DEPTH
+// Height of the ground at (x,z) with a smooth circular depression at (hx,hz)
+ground_height :: proc(x, z, hx, hz: f32) -> f32 {
+	dx := x - hx
+	dz := z - hz
+	dist := math.sqrt(dx*dx + dz*dz)
+	bevel_r := HOLE_RADIUS + HOLE_DEPTH / math.tan(HOLE_BEVEL_ANGLE)
 
-	verts = make([][3]f32, segments * 2)
-	tris = make([][3]u16, segments * 2)
+	if dist <= HOLE_RADIUS {
+		return -HOLE_DEPTH
+	}
+	if dist >= bevel_r {
+		return 0
+	}
+	// Smooth cosine falloff in the bevel zone
+	t := (dist - HOLE_RADIUS) / (bevel_r - HOLE_RADIUS)
+	return -HOLE_DEPTH * 0.5 * (1 + math.cos(t * math.PI))
+}
 
-	for i in 0..<segments {
-		angle := f32(i) * 2.0 * math.PI / f32(segments)
-		c := math.cos(angle)
-		s := math.sin(angle)
+// Central-difference normal for the heightfield
+ground_normal :: proc(x, z, hx, hz, eps: f32) -> [3]f32 {
+	dh_dx := (ground_height(x + eps, z, hx, hz) - ground_height(x - eps, z, hx, hz)) / (2 * eps)
+	dh_dz := (ground_height(x, z + eps, hx, hz) - ground_height(x, z - eps, hx, hz)) / (2 * eps)
+	return linalg.normalize([3]f32{-dh_dx, 1, -dh_dz})
+}
 
-		// Outer ring (top of bevel, at ground level)
-		verts[i] = [3]f32{R_outer * c, 0, R_outer * s}
+generate_ground_mesh :: proc(hx, hz: f32) -> (verts: []rv.Vertex, indices: []rv.Vertex_Index) {
+	NX := GROUND_GRID_X
+	NZ := GROUND_GRID_Z
+	NUM_VERTS := NX * NZ
+	NUM_TRIS := (NX - 1) * (NZ - 1) * 2
 
-		// Inner ring (bottom of bevel / top of cylindrical pit)
-		verts[segments + i] = [3]f32{R_hole * c, -depth, R_hole * s}
+	verts = make([]rv.Vertex, NUM_VERTS)
+	indices = make([]rv.Vertex_Index, NUM_TRIS * 3)
 
-		// Two triangles per segment (quad)
-		next := (i + 1) % segments
-		tris[i * 2 + 0] = [3]u16{u16(i), u16(next), u16(segments + i)}
-		tris[i * 2 + 1] = [3]u16{u16(next), u16(segments + next), u16(segments + i)}
+	min_x := -COURSE_HALF_X
+	max_x := COURSE_HALF_X
+	min_z := -COURSE_HALF_Z
+	max_z := COURSE_HALF_Z
+	step_x := (max_x - min_x) / f32(NX - 1)
+	step_z := (max_z - min_z) / f32(NZ - 1)
+
+	// Generate vertices
+	for iz in 0..<NZ {
+		for ix in 0..<NX {
+			x := min_x + f32(ix) * step_x
+			z := min_z + f32(iz) * step_z
+			y := ground_height(x, z, hx, hz)
+
+			i := iz * NX + ix
+			verts[i].pos = {x, y, z}
+			verts[i].uv = {u16(ix) * 256, u16(iz) * 256}
+			normal := ground_normal(x, z, hx, hz, step_x * 0.5)
+			verts[i].normal = rv.pack_normal_octahedral_unorm8(normal)
+			verts[i].col = {50, 180, 50, 255} // green grass
+		}
 	}
 
-	return verts, tris
+	// Generate indices (two triangles per quad)
+	idx := 0
+	for iz in 0..<(NZ - 1) {
+		for ix in 0..<(NX - 1) {
+			v00 := rv.Vertex_Index(iz * NX + ix)
+			v10 := rv.Vertex_Index(iz * NX + ix + 1)
+			v01 := rv.Vertex_Index((iz + 1) * NX + ix)
+			v11 := rv.Vertex_Index((iz + 1) * NX + ix + 1)
+
+			indices[idx + 0] = v00
+			indices[idx + 1] = v10
+			indices[idx + 2] = v01
+			indices[idx + 3] = v10
+			indices[idx + 4] = v11
+			indices[idx + 5] = v01
+			idx += 6
+		}
+	}
+
+	return verts, indices
 }
 
 // ---- course geometry -------------------------------------------------------
 
 register_course :: proc() {
 	hole := g.holes[g.active_hole]
-	hx := hole.pos.x
-	hz := hole.pos.z
-	gap := HOLE_GAP_HALF
 
-	// Split ground into 4 pieces with a square gap at the active hole.
-	// Left piece
-	coll.add_box_shape(
-		{(-COURSE_HALF_X + hx - gap) * 0.5, -GROUND_THICK * 0.5, 0},
-		{(hx - gap + COURSE_HALF_X) * 0.5, GROUND_THICK * 0.5, COURSE_HALF_Z},
-		restitution = 0.3, id = 0,
-	)
-	// Right piece
-	coll.add_box_shape(
-		{(hx + gap + COURSE_HALF_X) * 0.5, -GROUND_THICK * 0.5, 0},
-		{(COURSE_HALF_X - hx - gap) * 0.5, GROUND_THICK * 0.5, COURSE_HALF_Z},
-		restitution = 0.3, id = 0,
-	)
-	// Front piece (between left and right, front of hole)
-	coll.add_box_shape(
-		{hx, -GROUND_THICK * 0.5, (-COURSE_HALF_Z + hz - gap) * 0.5},
-		{gap, GROUND_THICK * 0.5, (hz - gap + COURSE_HALF_Z) * 0.5},
-		restitution = 0.3, id = 0,
-	)
-	// Back piece (between left and right, back of hole)
-	coll.add_box_shape(
-		{hx, -GROUND_THICK * 0.5, (hz + gap + COURSE_HALF_Z) * 0.5},
-		{gap, GROUND_THICK * 0.5, (COURSE_HALF_Z - hz - gap) * 0.5},
-		restitution = 0.3, id = 0,
-	)
-
-	// Hole bevel mesh (sloped walls)
-	if g.hole_mesh.index != 0 {
-		coll.add_mesh_shape(g.hole_mesh, hole.pos, restitution = 0.2)
+	// Ground mesh (smooth depression at hole)
+	if g.ground_mesh.index != 0 {
+		coll_mesh, coll_ok := rv.get_or_create_collision_mesh(g.ground_mesh)
+		if coll_ok {
+			coll.add_mesh_shape(coll_mesh, restitution = 0.3)
+		}
 	}
 
 	// Hole bottom (flat floor so ball doesn't fall forever)
@@ -306,13 +325,8 @@ _init :: proc() {
 
 	coll.init(&g.collision.state)
 
-	// Create hole bowl mesh (shared by all holes, positioned per-hole)
-	arena_ok: bool
-	g.hole_arena, arena_ok = coll.create_arena(1024 * 1024)
-	assert(arena_ok)
-
-	verts, tris := generate_bowl_mesh()
-	g.hole_mesh, _ = coll.create_mesh(g.hole_arena, verts, tris)
+	// Create render arena for ground mesh
+	g.ground_arena = rv.create_arena(.Static)
 
 	// Initialize hole positions
 	g.holes[0] = Hole{pos = {3.4, 0, 0}}
@@ -343,10 +357,14 @@ start_hole :: proc(hole_idx: int) {
 	g.game_time = 0
 
 	hole := g.holes[hole_idx]
-    reset_balls()
+	reset_balls()
 	for i in g.num_players..<MAX_PLAYERS {
 		g.balls[i] = {}
 	}
+
+	// Regenerate ground mesh for this hole position
+	verts, indices := generate_ground_mesh(hole.pos.x, hole.pos.z)
+	g.ground_mesh = rv.create_mesh_from_data("ground", g.ground_arena, verts, indices) or_else {}
 }
 
 _shutdown :: proc() {
@@ -487,8 +505,10 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 		cube := rv.get_builtin_mesh(.Cube)
 		sphere := rv.get_builtin_mesh(.UV_Sphere_1)
 
-		// Ground visual (single large box, even though collision is split)
-		rv.draw_mesh(cube, pos = {0, -GROUND_THICK * 0.5, 0}, scale = {COURSE_HALF_X, GROUND_THICK * 0.5, COURSE_HALF_Z}, col = [4]f32{0, 0.8, 0, 1})
+		// Ground mesh with smooth hole depression
+		if g.ground_mesh.index != 0 {
+			rv.draw_mesh(g.ground_mesh)
+		}
 
 		for i in 1..<len(g.boxes) {
 			box := g.boxes[i]
@@ -514,7 +534,8 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 		// Hole bottom (dark)
 		rv.draw_mesh(sphere, pos = hole.pos + {0, -HOLE_DEPTH + 0.01, 0}, scale = HOLE_RADIUS, col = [4]f32{0.05, 0.05, 0.05, 1})
 		// Bevel rim (yellow ring to show the slope boundary)
-		rv.draw_line_circle(hole.pos + {0, 0.01, 0}, rad = {hole_bevel_radius(), hole_bevel_radius()}, col = [4]f32{0.8, 0.8, 0, 0.5}, segments = 24)
+		bevel_r := HOLE_RADIUS + HOLE_DEPTH / math.tan(HOLE_BEVEL_ANGLE)
+		rv.draw_line_circle(hole.pos + {0, 0.01, 0}, rad = {bevel_r, bevel_r}, col = [4]f32{0.8, 0.8, 0, 0.5}, segments = 24)
 		// Hole inner rim
 		rv.draw_line_circle(hole.pos + {0, -HOLE_DEPTH + 0.01, 0}, rad = {HOLE_RADIUS, HOLE_RADIUS}, col = [4]f32{0.3, 0.3, 0.3, 0.5}, segments = 24)
 
