@@ -223,7 +223,9 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
                 return false
             }
 
-            append(&modules_to_unload, new_module.mod)
+            // Mark the OLD module for cleanup on runner exit. With local symbol scope,
+            // old and new .so files can safely coexist in memory.
+            append(&modules_to_unload, module.mod)
 
             module = new_module
             curr_index = new_file.index

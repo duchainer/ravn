@@ -207,7 +207,9 @@ when BACKEND == BACKEND_SDL3 {
 
     @(require_results)
     _load_module :: proc(path: string) -> (result: Module, ok: bool) {
-        lib := dynlib.load_library(path, global_symbols = true, allocator = context.temp_allocator) or_return
+        // Load with local symbol scope (RTLD_LOCAL) so multiple hot-reload .so files
+        // can coexist without symbol name collisions.
+        lib := dynlib.load_library(path, global_symbols = false, allocator = context.temp_allocator) or_return
         return {
             lib = lib,
         }, true
