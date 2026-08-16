@@ -382,7 +382,7 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 
 	if rv.get_key_pressed(.Escape) {
 		rv.request_shutdown()
-		return &g
+		return g
 	}
 
 	// Toggle labels
@@ -600,7 +600,7 @@ _update :: proc(hot_state: rawptr) -> rawptr {
 	rv.render_layer(0, rv.DEFAULT_RENDER_TEXTURE, nil, true)
 	rv.render_layer(1, rv.DEFAULT_RENDER_TEXTURE, nil, false)
 
-	return &g
+	return g
 }
 
 @export _module_desc := rv.Module_Desc{
