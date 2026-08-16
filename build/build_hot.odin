@@ -160,6 +160,9 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
         return false
     }
 
+    modules_to_unload: [dynamic]platform.Module
+    append(&modules_to_unload, module.mod)
+
     curr_index := initial.index
 
     prev_data: rawptr
@@ -220,19 +223,18 @@ hotreload_run :: proc(pkg: string, pkg_path: string) -> bool {
                 return false
             }
 
-            // Unload the old module immediately so symbol resolution finds the new one.
-            // On Linux, leaving multiple .so files loaded with global_symbols = true
-            // causes dlsym to resolve duplicate symbol names to the first loaded copy.
-            old_mod := module.mod
+            append(&modules_to_unload, new_module.mod)
+
             module = new_module
             curr_index = new_file.index
-            platform.unload_module(old_mod)
         }
 
         free_all(context.temp_allocator)
     }
 
-    platform.unload_module(module.mod)
+    for lib, i in modules_to_unload {
+        platform.unload_module(lib)
+    }
 
     base.log_info("Hotreload: finished OK")
 
