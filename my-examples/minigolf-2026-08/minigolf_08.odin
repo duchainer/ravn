@@ -115,20 +115,23 @@ g: ^Game_State
 
 // Height of the ground at (x,z) with a smooth circular depression at (hx,hz)
 ground_height :: proc(x, z, hx, hz: f32) -> f32 {
+	// 45-degree slope down toward the hole
+	slope := (x - hx) * math.tan(f32(45.0 * math.PI / 180.0))
+
 	dx := x - hx
 	dz := z - hz
 	dist := math.sqrt(dx*dx + dz*dz)
 	bevel_r := HOLE_RADIUS + HOLE_DEPTH / math.tan(HOLE_BEVEL_ANGLE)
 
 	if dist <= HOLE_RADIUS {
-		return -HOLE_DEPTH
+		return slope - HOLE_DEPTH
 	}
 	if dist >= bevel_r {
-		return 0
+		return slope
 	}
 	// Smooth cosine falloff in the bevel zone
 	t := (dist - HOLE_RADIUS) / (bevel_r - HOLE_RADIUS)
-	return -HOLE_DEPTH * 0.5 * (1 + math.cos(t * math.PI))
+	return slope - HOLE_DEPTH * 0.5 * (1 + math.cos(t * math.PI))
 }
 
 // Central-difference normal for the heightfield
@@ -213,8 +216,20 @@ register_course :: proc() {
 	)
 
 	// Four perimeter walls with different restitutions.
+	// Position walls to sit on the sloped ground.
+	// Left/right walls sit on the ground at their x-position.
+	// Front/back walls must span the full slope height since they run along the x-axis.
+	left_ground_y  := ground_height(-COURSE_HALF_X - WALL_THICK, 0, hole.pos.x, hole.pos.z)
+	right_ground_y := ground_height(COURSE_HALF_X + WALL_THICK, 0, hole.pos.x, hole.pos.z)
+	min_ground_y   := ground_height(-COURSE_HALF_X - WALL_THICK, 0, hole.pos.x, hole.pos.z)
+	max_ground_y   := ground_height(COURSE_HALF_X + WALL_THICK, 0, hole.pos.x, hole.pos.z)
+	wall_bottom    := min_ground_y - 0.1
+	wall_top       := max_ground_y + WALL_HEIGHT
+	wall_center_y  := (wall_bottom + wall_top) * 0.5
+	wall_half_h    := (wall_top - wall_bottom) * 0.5
+
 	g.boxes[1] = {
-		pos         = {-COURSE_HALF_X - WALL_THICK, WALL_HEIGHT * 0.5, 0},
+		pos         = {-COURSE_HALF_X - WALL_THICK, left_ground_y + WALL_HEIGHT * 0.5, 0},
 		scale       = {WALL_THICK, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
 		color       = [4]f32{0.8, 0.8, 1, 1},
 		restitution = 0.95,
@@ -223,7 +238,7 @@ register_course :: proc() {
 	coll.add_box_shape(g.boxes[1].pos, g.boxes[1].scale, restitution = g.boxes[1].restitution, id = g.boxes[1].collider_id)
 
 	g.boxes[2] = {
-		pos         = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, 0},
+		pos         = {COURSE_HALF_X + WALL_THICK, right_ground_y + WALL_HEIGHT * 0.5, 0},
 		scale       = {WALL_THICK, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
 		color       = [4]f32{0.8, 0.8, 0, 1},
 		restitution = 0.7,
@@ -232,8 +247,8 @@ register_course :: proc() {
 	coll.add_box_shape(g.boxes[2].pos, g.boxes[2].scale, restitution = g.boxes[2].restitution, id = g.boxes[2].collider_id)
 
 	g.boxes[3] = {
-		pos         = {0, WALL_HEIGHT * 0.5, -COURSE_HALF_Z - WALL_THICK},
-		scale       = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, WALL_THICK},
+		pos         = {0, wall_center_y, -COURSE_HALF_Z - WALL_THICK},
+		scale       = {COURSE_HALF_X + WALL_THICK, wall_half_h, WALL_THICK},
 		color       = [4]f32{0.8, 0.8, 0, 1},
 		restitution = 0.5,
 		collider_id = 3,
@@ -241,8 +256,8 @@ register_course :: proc() {
 	coll.add_box_shape(g.boxes[3].pos, g.boxes[3].scale, restitution = g.boxes[3].restitution, id = g.boxes[3].collider_id)
 
 	g.boxes[4] = {
-		pos         = {0, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
-		scale       = {COURSE_HALF_X + WALL_THICK, WALL_HEIGHT * 0.5, WALL_THICK},
+		pos         = {0, wall_center_y, COURSE_HALF_Z + WALL_THICK},
+		scale       = {COURSE_HALF_X + WALL_THICK, wall_half_h, WALL_THICK},
 		color       = [4]f32{0.8, 0.8, 0, 1},
 		restitution = 0.85,
 		collider_id = 4,
@@ -314,7 +329,7 @@ _init :: proc() {
 	g.cam.pos = {0, 0, -10}
 	g.cam.rot = {0.3, 0, 0}
 	g.cam.fov = rv.deg(degrees = 90)
-	g.cam.target = {0, 0, 0}
+	g.cam.target = {0, 3.4, 0}
 	g.cam.distance = 10
 
 	g.num_players = 5
@@ -329,7 +344,7 @@ _init :: proc() {
 	g.ground_arena = rv.create_arena(.Static)
 
 	// Initialize hole positions
-	g.holes[0] = Hole{pos = {3.4, 0, 0}}
+	g.holes[0] = Hole{pos = {-3.4, 0, 0}}
 	g.holes[1] = Hole{pos = {-2.0, 0, 1.5}}
 	g.holes[2] = Hole{pos = {0, 0, -1.8}}
 
@@ -338,12 +353,14 @@ _init :: proc() {
 
 
 reset_balls :: proc (){
-    // // Place balls in a line to the left of the hole
+    hole := g.holes[g.active_hole]
     for i in 0..<g.num_players {
         z_off := f32(i - g.num_players/2) * 0.6
+        start_x := f32(3.2)
+        start_y := ground_height(start_x, z_off, hole.pos.x, hole.pos.z) + BALL_RADIUS
         g.balls[i] = Ball{
-            pos    = {-3.2, BALL_RADIUS, z_off},
-            vel    = {10, 1, 10},
+            pos    = {start_x, start_y, z_off},
+            vel    = {0, 0, 0},
             radius = BALL_RADIUS,
             sunk   = false,
             name   = fmt.tprintf("P%d", i+1),
@@ -374,6 +391,7 @@ _shutdown :: proc() {
 
 
 _update :: proc(hot_state: rawptr) -> rawptr {
+    // rv.request_shutdown()
 	rv.perf_scope()
 
 	if hot_state != nil {
@@ -436,7 +454,20 @@ _update :: proc(hot_state: rawptr) -> rawptr {
     mouse_ground_ok := false
     {
         mouse_ray := rv.screen_to_world_ray(rv.get_mouse_pos(), camera)
-        if abs(mouse_ray.y) > 0.001 {
+        hole_x := g.holes[g.active_hole].pos.x
+
+        // Intersect with sloped ground plane: y = x - hole_x
+        denom := mouse_ray.y - mouse_ray.x
+        if abs(denom) > 0.001 {
+            t := (camera.pos.x - camera.pos.y - hole_x) / denom
+            if t > 0 {
+                mouse_ground = camera.pos + mouse_ray * t
+                mouse_ground_ok = true
+            }
+        }
+
+        // Fallback to flat y=0 plane
+        if !mouse_ground_ok && abs(mouse_ray.y) > 0.001 {
             t := -camera.pos.y / mouse_ray.y
             if t > 0 {
                 mouse_ground = camera.pos + mouse_ray * t
