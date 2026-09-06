@@ -263,6 +263,36 @@ register_course :: proc() {
 		collider_id = 4,
 	}
 	coll.add_box_shape(g.boxes[4].pos, g.boxes[4].scale, restitution = g.boxes[4].restitution, id = g.boxes[4].collider_id)
+
+	// Obstacles of height 0.75
+	obstacle_h :: f32(0.75)
+
+	g.boxes[5] = {
+		pos         = {1.5, ground_height(1.5, 0, hole.pos.x, hole.pos.z) + obstacle_h * 0.5, 0},
+		scale       = {0.15, obstacle_h * 0.5, 0.6},
+		color       = [4]f32{0.8, 0.2, 0.2, 1},
+		restitution = 0.6,
+		collider_id = 5,
+	}
+	coll.add_box_shape(g.boxes[5].pos, g.boxes[5].scale, restitution = g.boxes[5].restitution, id = g.boxes[5].collider_id)
+
+	g.boxes[6] = {
+		pos         = {0.0, ground_height(0.0, -0.8, hole.pos.x, hole.pos.z) + obstacle_h * 0.5, -0.8},
+		scale       = {0.6, obstacle_h * 0.5, 0.15},
+		color       = [4]f32{0.2, 0.2, 0.8, 1},
+		restitution = 0.6,
+		collider_id = 6,
+	}
+	coll.add_box_shape(g.boxes[6].pos, g.boxes[6].scale, restitution = g.boxes[6].restitution, id = g.boxes[6].collider_id)
+
+	g.boxes[7] = {
+		pos         = {-1.5, ground_height(-1.5, 0.8, hole.pos.x, hole.pos.z) + obstacle_h * 0.5, 0.8},
+		scale       = {0.15, obstacle_h * 0.5, 0.6},
+		color       = [4]f32{0.8, 0.8, 0.2, 1},
+		restitution = 0.6,
+		collider_id = 7,
+	}
+	coll.add_box_shape(g.boxes[7].pos, g.boxes[7].scale, restitution = g.boxes[7].restitution, id = g.boxes[7].collider_id)
 }
 
 // ---- helpers -------------------------------------------------------
