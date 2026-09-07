@@ -596,7 +596,7 @@ when BACKEND == BACKEND_SDL3 {
 
     @(require_results)
     _write_file_by_path :: proc(path: string, data: []u8) -> bool {
-        unimplemented()
+        return os.write_entire_file(path, data) == nil
     }
 
     @(require_results)
