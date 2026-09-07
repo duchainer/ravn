@@ -608,7 +608,7 @@ _post_gpu_init :: proc() {
     _state.render_textures[DEFAULT_RENDER_TEXTURE.index] = Render_Texture{
         size = _state.screen_size,
         color = {},
-        depth = gpu.create_texture_2d("rv-def-rentex-depth", .D_F32, _state.screen_size, render_texture = true) or_else panic("gpu"),
+        depth = {},
     }
 
     _state.sprite_inst_buf = gpu.create_buffer("rv-sprite-inst-buf",
