@@ -268,7 +268,10 @@ _set_window_size :: proc(window: Window, size: [2]i32) {
         // sizes differ, causing an ImportMemory validation error every frame.
         // Re-enable when browser WebGPU implementations handle mismatched
         // CSS/pixel sizes correctly.
-        rect := js.get_bounding_client_rect("body")
+        // NOTE: Using window_get_rect instead of get_bounding_client_rect("body")
+        // because the body may not fill the entire viewport in some browsers,
+        // causing a mismatch between the depth texture size and swapchain size.
+        rect := js.window_get_rect()
         return {
             min = 0,
             size = {
