@@ -9,7 +9,11 @@ import "core:strings"
 
 WASM_PAGE_SIZE :: 65536
 
-DEFAULT_INITIAL_MEM_PAGES :: 2000
+// HACK: Doubled from 2000 to 4000 as a temporary workaround for WebGPU
+// ImportMemory validation errors where the compositor backbuffer size exceeds
+// the default allocation on some browsers (e.g. Brave). Revisit when the
+// underlying surface size mismatch is properly fixed.
+DEFAULT_INITIAL_MEM_PAGES :: 4000
 DEFAULT_MAX_MEM_PAGES :: 65536
 
 export_web :: proc(dst_dir: string, pkg_name: string, pkg_path: string) -> bool {
