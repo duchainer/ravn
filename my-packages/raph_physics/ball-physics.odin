@@ -66,10 +66,10 @@ raph_collide_sphere_swept :: proc(
         vn := linalg.dot(vel, sweep.normal)
         if vn < -impact_threshold {
             vel -= sweep.normal * vn * (1 + shape_restitution)
-        } else if vn < 0 {
-            // Resting contact: zero out any velocity pushing into the surface
-            vel -= sweep.normal * vn
-        }
+        } // else if vn < 0 {
+        //     // Resting contact: zero out any velocity pushing into the surface
+        //     vel -= sweep.normal * vn
+        // }
 
         if range <= 0.001 {
             break

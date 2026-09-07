@@ -1454,9 +1454,9 @@ when BACKEND == BACKEND_WGPU {
         case .RGBA_U32:         return .RGBA32Uint
         case .RGBA_S32:         return .RGBA32Sint
         case .RGBA_F16:         return .RGBA16Float
-        case .RGBA_U16_Norm:    return .Rgba16Unorm
+        case .RGBA_U16_Norm:    return .RGBA16Unorm
         case .RGBA_U16:         return .RGBA16Uint
-        case .RGBA_S16_Norm:    return .Rgba16Snorm
+        case .RGBA_S16_Norm:    return .RGBA16Snorm
         case .RGBA_S16:         return .RGBA16Sint
         case .RG_F32:           return .RG32Float
         case .RG_U32:           return .RG32Uint
@@ -1469,9 +1469,9 @@ when BACKEND == BACKEND_WGPU {
         case .RGBA_S8_Norm:     return .RGBA8Snorm
         case .RGBA_S8:          return .RGBA8Sint
         case .RG_F16:           return .RG16Float
-        case .RG_U16_Norm:      return .Rg16Unorm
+        case .RG_U16_Norm:      return .RG16Unorm
         case .RG_U16:           return .RG16Uint
-        case .RG_S16_Norm:      return .Rg16Snorm
+        case .RG_S16_Norm:      return .RG16Snorm
         case .RG_S16:           return .RG16Sint
         case .D_F32:            return .Depth32Float
         case .R_F32:            return .R32Float
