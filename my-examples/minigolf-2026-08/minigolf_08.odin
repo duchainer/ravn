@@ -230,7 +230,7 @@ register_course :: proc() {
 
 	g.boxes[1] = {
 		pos         = {-COURSE_HALF_X - WALL_THICK, left_ground_y + WALL_HEIGHT * 0.5, 0},
-		scale       = {WALL_THICK, WALL_HEIGHT * 0.5, COURSE_HALF_Z + WALL_THICK},
+		scale       = {WALL_THICK, WALL_HEIGHT * 2.5, COURSE_HALF_Z + WALL_THICK},
 		color       = [4]f32{0.8, 0.8, 1, 1},
 		restitution = 0.95,
 		collider_id = 1,
@@ -268,10 +268,10 @@ register_course :: proc() {
 	obstacle_h :: f32(0.75)
 
 	g.boxes[5] = {
-		pos         = {1.5, ground_height(1.5, 0, hole.pos.x, hole.pos.z) + obstacle_h * 0.5, 0},
+		pos         = {0,0,0},
 		scale       = {0.15, obstacle_h * 0.5, 0.6},
 		color       = [4]f32{0.8, 0.2, 0.2, 1},
-		restitution = 0.6,
+		restitution = 0.99,
 		collider_id = 5,
 	}
 	coll.add_box_shape(g.boxes[5].pos, g.boxes[5].scale, restitution = g.boxes[5].restitution, id = g.boxes[5].collider_id)
@@ -280,7 +280,7 @@ register_course :: proc() {
 		pos         = {0.0, ground_height(0.0, -0.8, hole.pos.x, hole.pos.z) + obstacle_h * 0.5, -0.8},
 		scale       = {0.6, obstacle_h * 0.5, 0.15},
 		color       = [4]f32{0.2, 0.2, 0.8, 1},
-		restitution = 0.6,
+		restitution = 0.99,
 		collider_id = 6,
 	}
 	coll.add_box_shape(g.boxes[6].pos, g.boxes[6].scale, restitution = g.boxes[6].restitution, id = g.boxes[6].collider_id)
@@ -289,7 +289,7 @@ register_course :: proc() {
 		pos         = {-1.5, ground_height(-1.5, 0.8, hole.pos.x, hole.pos.z) + obstacle_h * 0.5, 0.8},
 		scale       = {0.15, obstacle_h * 0.5, 0.6},
 		color       = [4]f32{0.8, 0.8, 0.2, 1},
-		restitution = 0.6,
+		restitution = 0.99,
 		collider_id = 7,
 	}
 	coll.add_box_shape(g.boxes[7].pos, g.boxes[7].scale, restitution = g.boxes[7].restitution, id = g.boxes[7].collider_id)
@@ -320,7 +320,7 @@ tick_ball :: proc(ball: ^Ball, hole: Hole, dt: f32) {
 	ball.vel.y -= GRAVITY * dt
 	ball.vel = apply_rolling_friction_xz(ball.vel, dt)
 
-	new_pos, new_vel := raph_physics.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.6)
+	new_pos, new_vel := raph_physics.raph_collide_sphere_swept(ball.pos, ball.vel, BALL_RADIUS, restitution = 0.99)
 	ball.pos = new_pos
 	ball.vel = new_vel
 
