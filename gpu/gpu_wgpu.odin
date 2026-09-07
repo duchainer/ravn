@@ -130,8 +130,12 @@ when BACKEND == BACKEND_WGPU {
             base.log_debug("Got WebGPU Adapter")
 
             if status != .Success || adapter == nil {
-                base.log_err("request adapter failure: [%v] %s", status, message)
-                panic("WebGPU Adapter")
+                base.log_err("WebGPU adapter request failed: status=%v, message='%s'", status, message)
+                if status == .Unavailable {
+                    panic("WebGPU is not available in this browser. Use Chrome 113+, Edge 113+, or Firefox Nightly with webgpu.enabled set to true.")
+                } else {
+                    panic("WebGPU adapter request failed — see browser console for details.")
+                }
             }
             _state.adapter = adapter
 
@@ -149,7 +153,7 @@ when BACKEND == BACKEND_WGPU {
         for feature in required_features {
             if !wgpu.AdapterHasFeature(_state.adapter, feature) {
                 base.log_err("WebGPU adapter doesn't have a required feature:", feature)
-                panic("WebGPU Adapter Feature")
+                panic("WebGPU adapter missing required feature — see browser console for details.")
             }
         }
 
