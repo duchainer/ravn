@@ -259,18 +259,24 @@ _set_window_size :: proc(window: Window, size: [2]i32) {
     _js_unsupported()
 }
 
-@(require_results)
-_get_window_rect :: proc(window: Window) -> Rect {
-    rect := js.get_bounding_client_rect("body")
-    dpi := js.device_pixel_ratio()
-    return {
-        min = 0,
-        size = {
-            i32(f64(rect.width) * dpi),
-            i32(f64(rect.height) * dpi),
-        },
+    @(require_results)
+    _get_window_rect :: proc(window: Window) -> Rect {
+        // NOTE: DPI scaling is intentionally disabled for web exports.
+        // In some WebGPU implementations (e.g. Brave), the compositor allocates
+        // its backbuffer based on CSS size, while WebGPU creates the swapchain
+        // backbuffer from canvas pixel size. Multiplying by DPI makes these
+        // sizes differ, causing an ImportMemory validation error every frame.
+        // Re-enable when browser WebGPU implementations handle mismatched
+        // CSS/pixel sizes correctly.
+        rect := js.get_bounding_client_rect("body")
+        return {
+            min = 0,
+            size = {
+                i32(rect.width),
+                i32(rect.height),
+            },
+        }
     }
-}
 
 _set_mouse_pos_window_relative :: proc(window: Window, pos: [2]i32) {
     _js_unsupported()
