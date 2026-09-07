@@ -14,6 +14,7 @@ Target :: enum u8 {
     Invalid = 0,
     DXBC,
     WGSL,
+    GLSL_ES,
 }
 
 Stage :: enum u8 {
@@ -36,7 +37,7 @@ Include_Proc :: #type proc (path: string, user: rawptr) -> (string, bool)
 
 // If this returns false the shader compiler is not available. Do not call any other procedures.
 @(require_results)
-init :: proc(state: ^State, target: Target) -> bool {
+    init :: proc(state: ^State, target: Target) -> bool {
     state.target = target
 
     switch target {
@@ -48,6 +49,9 @@ init :: proc(state: ^State, target: Target) -> bool {
         return ODIN_OS == .Windows
 
     case .WGSL:
+        return _slang_init(&state.slang)
+
+    case .GLSL_ES:
         return _slang_init(&state.slang)
     }
 
@@ -77,6 +81,9 @@ compile :: proc(
 
     case .WGSL:
         result, ok = _compile_slang_wgsl(state, name, source, opts)
+
+    case .GLSL_ES:
+        result, ok = _compile_slang_glsl_es(state, name, source, opts)
     }
 
     return result, ok

@@ -10,12 +10,14 @@ compile_builtin_shaders :: proc() -> bool {
     targets := []shader_compiler.Target{
         .DXBC,
         .WGSL,
+        .GLSL_ES,
     }
 
     for target in targets {
         state: shader_compiler.State
         if !shader_compiler.init(&state, target) {
             base.log_err("Failed to initialize shader compiler for target '{}'", target)
+            continue
         }
 
         _compile_builtin_shader(&state, "data/default.vs.hlsl", .Vertex) or_return
@@ -55,8 +57,11 @@ _compile_builtin_shader :: proc(
     case .DXBC:
         ext = "dxbc"
 
-    case.WGSL:
+    case .WGSL:
         ext = "wgsl"
+
+    case .GLSL_ES:
+        ext = "glsl_es"
     }
 
     dst_path := ufmt.tprintf(Path + ".%s", ext)

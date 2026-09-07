@@ -68,39 +68,37 @@ _compile_slang_wgsl :: proc(
     source:         string,
     opts:           Options,
 ) -> (result: []byte, ok: bool) {
-    assert(state.slang.global_session != nil)
+    return _compile_slang_target(state, name, source, opts, .WGSL, "wgsl_1_0")
+}
 
-    // Implements something like the following slangc command:
-    // slangc.exe name.hlsl -target wgsl -entry vs_main -stage vertex -o shader.wgsl -fvk-b-shift 0 0 -fvk-t-shift 8 0 -fvk-s-shift 16 0
+_compile_slang_glsl_es :: proc(
+    state:          ^State,
+    name:           string,
+    source:         string,
+    opts:           Options,
+) -> (result: []byte, ok: bool) {
+    return _compile_slang_target(state, name, source, opts, .GLSL, "glsl_es_310")
+}
+
+_compile_slang_target :: proc(
+    state:          ^State,
+    name:           string,
+    source:         string,
+    opts:           Options,
+    target_format:  slang.CompileTarget,
+    profile_name:   cstring,
+) -> (result: []byte, ok: bool) {
+    assert(state.slang.global_session != nil)
 
     target_desc := slang.TargetDesc{
         structureSize = size_of(slang.TargetDesc),
-        format = .WGSL,
-        profile = state.slang.global_session->findProfile("wgsl_1_0"),
+        format = target_format,
+        profile = state.slang.global_session->findProfile(profile_name),
     }
 
-    // Hardcoded for now...
-
-    CONSTANTS_BIND_SLOTS :: 8
-    SAMPLER_BIND_SLOTS :: 8
-    RESOURCE_BIND_SLOTS :: 32
-    RW_RESOURCE_BIND_SLOTS :: 32
-
-    SAMPLER_SLOT_SHIFT :: 0
-    CONSTANTS_SLOT_SHIFT :: SAMPLER_SLOT_SHIFT + SAMPLER_BIND_SLOTS
-    RESOURCE_SLOT_SHIFT :: CONSTANTS_SLOT_SHIFT + CONSTANTS_BIND_SLOTS
-    RW_RESOURCE_SLOT_SHIFT :: RESOURCE_SLOT_SHIFT + RESOURCE_BIND_SLOTS
-
-
-    // NOTE: this is broken
-    // https://github.com/shader-slang/slang/issues/10441
     options := [?]slang.CompilerOptionEntry {
         { .Stage, {.Int, i32(slang.Stage.VERTEX), 0, nil, nil}},
         { .Optimization, {.Int, i32(opts.release ? slang.OptimizationLevel.HIGH : slang.OptimizationLevel.NONE), 0, nil, nil}},
-        // { .VulkanBindShift, {.Int, pack_vk_shift(slang.HLSLToVulkanLayoutBindingKind.Sampler, 0), SAMPLER_SLOT_SHIFT, nil, nil}},
-        // { .VulkanBindShift, {.Int, pack_vk_shift(slang.HLSLToVulkanLayoutBindingKind.ConstantBuffer, 0), CONSTANTS_SLOT_SHIFT, nil, nil}},
-        // { .VulkanBindShift, {.Int, pack_vk_shift(slang.HLSLToVulkanLayoutBindingKind.ShaderResource, 0), RESOURCE_SLOT_SHIFT, nil, nil}},
-        // { .VulkanBindShift, {.Int, pack_vk_shift(slang.HLSLToVulkanLayoutBindingKind.UnorderedAccess, 0), RW_RESOURCE_SLOT_SHIFT, nil, nil}},
     }
 
     file_system: _Slang_IFileSystem = {
@@ -167,17 +165,13 @@ _compile_slang_wgsl :: proc(
         return nil, false
     }
 
-    wgsl_code: ^slang.IBlob
-    _slang_check_diag(composite->getEntryPointCode(0, 0, &wgsl_code, &diag), diag)
-    if wgsl_code == nil {
+    code_blob: ^slang.IBlob
+    _slang_check_diag(composite->getEntryPointCode(0, 0, &code_blob, &diag), diag)
+    if code_blob == nil {
         return nil, false
     }
 
-    return _slang_blob_buf(wgsl_code), true
-
-    pack_vk_shift :: proc(#any_int kind: u8, set: u32) -> i32 {
-        return transmute(i32)((u32(kind) << 24) | (set & 0x00FFFFFF))
-    }
+    return _slang_blob_buf(code_blob), true
 }
 
 _slang_check :: proc(res: slang.Result, expr := #caller_expression(res), loc := #caller_location) -> bool {

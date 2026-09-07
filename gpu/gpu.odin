@@ -18,12 +18,16 @@ BACKEND :: #config(GPU_BACKEND, DEFAULT_BACKEND)
 
 BACKEND_D3D11 :: "D3D11"
 BACKEND_WGPU :: "WGPU"
+BACKEND_WEBGL :: "WebGL"
 BACKEND_DUMMY :: "Dummy"
 
-when ODIN_OS == .Windows {
+when #config(GPU_BACKEND, "") != "" {
+    DEFAULT_BACKEND :: #config(GPU_BACKEND, "")
+} else when ODIN_OS == .Windows {
     DEFAULT_BACKEND :: BACKEND_D3D11
 } else when ODIN_OS == .JS {
-    DEFAULT_BACKEND :: BACKEND_WGPU
+    // Use WebGL (via Emscripten) instead of the broken WebGPU approach.
+    DEFAULT_BACKEND :: BACKEND_WEBGL
 } else when ODIN_OS == .Linux || ODIN_OS == .Darwin {
     DEFAULT_BACKEND :: BACKEND_WGPU
 } else {

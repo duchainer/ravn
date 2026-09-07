@@ -677,3 +677,11 @@ main :: proc() {
 
 	rv.run_main_loop(_module_desc)
 }
+
+@(export)
+web_start :: proc() {
+	fmt.println("=== Mini Golf 3D prototype (WebGL) ===")
+	fmt.println()
+
+	rv.run_main_loop(_module_desc)
+}

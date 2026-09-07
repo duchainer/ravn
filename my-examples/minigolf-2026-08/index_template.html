@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en-us">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+	<title>Ravn Engine — WebGL Build</title>
+	<meta name="title" content="Ravn Engine — WebGL Build">
+	<meta name="description" content="Ravn engine game compiled with Emscripten + WebGL">
+	<meta name="viewport" content="width=device-width">
+
+	<style>
+		body {
+			margin: 0px;
+			overflow: hidden;
+			background-color: black;
+		}
+		canvas.game_canvas {
+			border: 0px none;
+			background-color: black;
+			padding-left: 0;
+			padding-right: 0;
+			margin-left: auto;
+			margin-right: auto;
+			display: block;
+		}
+	</style>
+</head>
+<body>
+	<canvas class="game_canvas" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1" onmousedown="event.target.focus()" onkeydown="event.preventDefault()"></canvas>
+	<script type="text/javascript" src="odin.js"></script>
+	<!-- TODO: include ravn_platform.js and ravn_webaudio.js when those interfaces are needed -->
+	<script>
+		var odinMemoryInterface = new odin.WasmMemoryInterface();
+		odinMemoryInterface.setIntSize(4);
+		var odinImports = odin.setupDefaultImports(odinMemoryInterface);
+
+		// Stubs for missing foreign imports (stb_image, ravn_platform, ravn_audio).
+		// These prevent the Emscripten-generated fallback stubs from calling abort().
+		// TODO: replace with real implementations or compile the C libraries with emcc.
+		var customImports = {
+			// stb_image stubs
+			stbi_load_from_memory: () => 0,
+			stbi_image_free: () => {},
+			stbi_failure_reason: () => 0,
+			stbi_set_flip_vertically_on_load: () => {},
+
+			// ravn_platform stubs (if ravn_platform.js is not loaded)
+			init: () => {},
+			set_pointer_lock: () => {},
+			get_pointer_lock: () => 0,
+			add_window_event_listener: () => 1,
+			window_get_rect: (w, h) => { if(w) odinMemoryInterface.storeInt(w, 1280); if(h) odinMemoryInterface.storeInt(h, 720); },
+			get_gamepad_state: () => 0,
+			init_event_raw: () => {},
+
+			// ravn_audio stubs (if ravn_webaudio.js is not loaded)
+			push_buffer: () => {},
+			get_num_queued_buffers: () => 0,
+		};
+
+		// The Module is used as configuration for emscripten.
+		var Module = {
+			// This is called by emscripten when it starts up.
+			instantiateWasm: (imports, successCallback) => {
+				const newImports = {
+					...odinImports,
+					...customImports,
+					...imports
+				}
+
+				return WebAssembly.instantiateStreaming(fetch("index.wasm"), newImports).then(function(output) {
+					var e = output.instance.exports;
+					odinMemoryInterface.setExports(e);
+					odinMemoryInterface.setMemory(e.memory);
+					return successCallback(output.instance);
+				});
+			},
+			// This happens a bit after `instantiateWasm`, when everything is
+			// done setting up. At that point we can run code.
+			onRuntimeInitialized: () => {
+				var e = wasmExports;
+
+				// _web_start() calls rv.run_main_loop(), which on JS target does
+				// init_state() and stores the module desc, then returns.
+				e._web_start();
+
+				function do_step() {
+					if (e._step(0.016)) {
+						window.requestAnimationFrame(do_step);
+					} else {
+						// Game requested shutdown.
+						e._end();
+					}
+				}
+
+				window.requestAnimationFrame(do_step);
+			},
+			print: (function() {
+				var element = document.getElementById("output");
+				if (element) element.value = '';
+				return function(text) {
+					if (arguments.length > 1) text = Array.prototype.slice.call(arguments).join(' ');
+					console.log(text);
+					if (element) {
+					  element.value += text + "\n";
+					  element.scrollTop = element.scrollHeight;
+					}
+				};
+			})(),
+			canvas: (function() {
+				return document.getElementById("canvas");
+			})()
+		};
+	</script>
+
+	<!-- Emscripten injects its javascript here -->
+	{{{ SCRIPT }}}
+</body>
+</html>

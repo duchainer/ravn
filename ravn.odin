@@ -1132,6 +1132,10 @@ _load_builtin_assets :: proc() {
         default_sprite_vs = #load("data/default_sprite.vs.hlsl.wgsl")
         default_vs = #load("data/default.vs.hlsl.wgsl")
         default_ps = #load("data/default.ps.hlsl.wgsl")
+    } else when gpu.BACKEND == gpu.BACKEND_WEBGL {
+        default_sprite_vs = #load("data/default_sprite.vs.hlsl.glsl_es")
+        default_vs = #load("data/default.vs.hlsl.glsl_es")
+        default_ps = #load("data/default.ps.hlsl.glsl_es")
     }
 
     _state.builtin_shader = {
