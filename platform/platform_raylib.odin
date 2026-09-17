@@ -11,17 +11,12 @@
 #+vet explicit-allocators shadowing unused
 package ravn_platform
 
-import "core:os"
 import "core:time"
 import "base:runtime"
 import "../base"
 
 _ :: runtime
 _ :: base
-_ :: time
-_ :: filepath
-
-BACKEND_RAYLIB :: "Raylib"
 
 when BACKEND == BACKEND_RAYLIB {
 
@@ -33,6 +28,7 @@ when ODIN_OS == .Windows {
 
 // Minimal raylib types and foreign declarations needed for the platform layer.
 // (The GPU backend declares its own rlgl subset.)
+@(default_calling_convention="c")
 foreign raylib_lib {
     InitWindow              :: proc(width, height: i32, title: cstring) ---
     CloseWindow             :: proc() ---
@@ -75,7 +71,6 @@ Vector2 :: struct { x, y: f32 }
 
 _State :: struct {
     window_created:  bool,
-    mouse_pos:       [2]f32,
     keys_down:       [512]bool,   // track previous frame key state
     mouse_buttons:   bit_set[Mouse_Button],
     poll_ns:         u64,         // time of last input scan (to detect new frame)
@@ -116,24 +111,7 @@ _shutdown :: proc() {
     }
 }
 
-@(require_results)
-_get_commandline_args :: proc(allocator: runtime.Allocator) -> []string {
-    return os.args
-}
 
-@(require_results)
-_run_shell_command :: proc(command: string) -> int {
-    state, _, _, err := os.process_exec(
-        os.Process_Desc{
-            command = {"sh", "-c", command},
-        },
-        allocator = context.temp_allocator,
-    )
-    if err != nil {
-        return -1
-    }
-    return state.exit_code
-}
 
 _exit_process :: proc(code: int) -> ! {
     runtime.trap()
@@ -220,15 +198,7 @@ _set_mouse_visible :: proc(visible: bool) {
     }
 }
 
-@(require_results)
-_set_current_directory :: proc(path: string) -> bool {
-    return os.set_working_directory(path) != nil
-}
 
-@(require_results)
-_get_executable_path :: proc(allocator := context.temp_allocator) -> string {
-    return os.args[0] if len(os.args) > 0 else ""
-}
 
 @(require_results)
 _load_module :: proc(path: string) -> (result: Module, ok: bool) {
@@ -410,14 +380,14 @@ _poll_window_events :: proc(window: Window) -> (ok: bool) {
     // Mouse movement
     pos := GetMousePosition()
     delta := GetMouseDelta()
-    if delta.x != 0 || delta.y != 0 || _state.mouse_pos.x != pos.x || _state.mouse_pos.y != pos.y {
+    if delta.x != 0 || delta.y != 0 || _state.mouse_pos.x != i32(pos.x) || _state.mouse_pos.y != i32(pos.y) {
         _event_queue_push(Event_Mouse{
             move = {i32(delta.x), i32(delta.y)},
             pos  = {i32(pos.x), i32(pos.y)},
         })
         ok = true
     }
-    _state.mouse_pos = {pos.x, pos.y}
+    _state.mouse_pos = {i32(pos.x), i32(pos.y)}
 
     // Scroll
     scroll := GetMouseWheelMoveV()
@@ -588,44 +558,11 @@ _get_last_write_time :: proc(handle: File_Handle) -> (u64, bool) {
     return 0, false
 }
 
-@(require_results)
-_delete_file :: proc(path: string) -> bool {
-    return (os.remove_all(path) == nil)
-}
 
-@(require_results)
-_read_file_by_path :: proc(path: string, allocator := context.allocator) -> (data: []byte, ok: bool) {
-    return os.read_entire_file(path, allocator)
-}
-
-@(require_results)
-_write_file_by_path :: proc(path: string, data: []u8) -> bool {
-    return os.write_entire_file(path, data) == nil
-}
-
-@(require_results)
-_file_exists :: proc(path: string) -> bool {
-    return os.exists(path)
-}
 
 @(require_results)
 _clone_file :: proc(path: string, new_path: string, fail_if_exists := true) -> bool {
     return false
-}
-
-@(require_results)
-_create_directory :: proc(path: string) -> bool {
-    return os.make_directory(path) == nil
-}
-
-@(require_results)
-_is_file :: proc(path: string) -> bool {
-    return os.is_file(path)
-}
-
-@(require_results)
-_is_directory :: proc(path: string) -> bool {
-    return os.is_dir(path)
 }
 
 @(require_results)

@@ -45,6 +45,7 @@ RenderTexture :: struct { id: u32, texture: Texture, depth: Texture }
 Shader :: struct { id: u32, locs: [^]i32 }
 Matrix :: struct { m: [16]f32 }
 
+@(default_calling_convention="c")
 foreign raylib_lib {
     BeginDrawing :: proc() ---
     EndDrawing :: proc() ---
@@ -95,6 +96,7 @@ foreign raylib_lib {
     rlEnableTexture :: proc(id: u32) ---
 }
 
+@(default_calling_convention="c")
 foreign gl_lib {
     glGenTextures :: proc(n: i32, textures: ^u32) ---
     glDeleteTextures :: proc(n: i32, textures: ^u32) ---
@@ -122,6 +124,7 @@ GL_UNPACK_ALIGNMENT :: 0x0CF5
 GL_MAX_TEXTURE_SIZE :: 0x0D33
 GL_RGBA8 :: 0x8058
 GL_RGBA :: 0x1908
+GL_TEXTURE0 :: 0x84C0
 GL_UNSIGNED_BYTE :: 0x1401
 GL_FLOAT :: 0x1406
 GL_UNSIGNED_SHORT :: 0x1403
@@ -245,16 +248,30 @@ _init :: proc(native_window: rawptr) -> bool {
         { name = "rv_global_resolution", type = .Int,   offset = 12, count = 2 },
         { name = "rv_global_rand_seed",  type = .UInt,  offset = 20, count = 1 },
         { name = "rv_global_param",      type = .UInt,  offset = 24, count = 4 },
+        {},
+        {},
     }
     _uniform_lens[0] = 6
     _uniform_regs[1] = {
         { name = "rv_view_proj",   type = .Mat4, offset = 0,  count = 1 },
         { name = "rv_cam_pos",     type = .Vec3, offset = 64, count = 1 },
         { name = "rv_layer_index", type = .Int,  offset = 76, count = 1 },
+        {},
+        {},
+        {},
+        {},
+        {},
     }
     _uniform_lens[1] = 3
     _uniform_regs[2] = {
         { name = "rv_instance_offset", type = .UInt, offset = 0, count = 1 },
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
     }
     _uniform_lens[2] = 1
 

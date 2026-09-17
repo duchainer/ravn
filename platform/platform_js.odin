@@ -16,6 +16,14 @@ import "../base"
 import "base:runtime"
 import "core:sys/wasm/js"
 
+_ :: base
+_ :: runtime
+_ :: js
+
+_ :: base
+_ :: runtime
+_ :: js
+
 when BACKEND == BACKEND_JS {
 _CANVAS_ID :: "#ravn-canvas"
 
