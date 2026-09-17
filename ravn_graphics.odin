@@ -681,9 +681,9 @@ _try_get_equivalent_existing_shader :: proc(name: string, input_hash: Hash) -> (
 }
 
 _shader_kind_from_name :: proc(name: string) -> gpu.Shader_Kind {
-    if string_has_suffix(name, ".ps.hlsl") {
+    if string_has_suffix(name, ".ps.hlsl") || string_has_suffix(name, ".ps.glsl") {
         return .Pixel
-    } else if string_has_suffix(name, ".vs.hlsl") {
+    } else if string_has_suffix(name, ".vs.hlsl") || string_has_suffix(name, ".vs.glsl") {
         return .Vertex
     }
     return .Invalid

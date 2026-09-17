@@ -16,8 +16,7 @@ import "../base"
 import "base:runtime"
 import "core:sys/wasm/js"
 
-#assert(BACKEND == BACKEND_JS)
-
+when BACKEND == BACKEND_JS {
 _CANVAS_ID :: "#ravn-canvas"
 
 _State :: struct {
@@ -674,3 +673,5 @@ foreign ravn_platform {
     @(link_name="get_pointer_lock")
     _get_pointer_lock :: proc "contextless" (canvas: string) -> b32 ---
 }
+
+} // when BACKEND == BACKEND_JS

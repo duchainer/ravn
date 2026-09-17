@@ -73,9 +73,10 @@ compile_web_obj :: proc(dst_dir: string, pkg_name: string, pkg_path: string, ini
 	OPT_FLAGS :: "-debug "
 	// OPT_FLAGS :: "-o:size -no-bounds-check -disable-assert -define:GPU_RELEASE=true "
 
+	GPU_BACKEND_VAL :: #config(WEB_GPU_BACKEND, "WebGL")
 	FORMAT :: "%s build %s -target:js_wasm32 -build-mode:obj -out:%s/%s.wasm.o " +
 		"-define:RELEASE=true " +
-		"-define:GPU_BACKEND=WebGL " +
+		"-define:GPU_BACKEND=" + GPU_BACKEND_VAL + " " +
 		OPT_FLAGS +
 		"-extra-linker-flags:\"--export-table --initial-memory=%i --max-memory=%i\""
 
