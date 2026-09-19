@@ -1,0 +1,67 @@
+name: Deploy Web Export to Cloudflare Workers
+
+on:
+  push:
+    branches: [minigolf-game]
+    paths:
+      - 'my-examples/minigolf-2026-08/**'
+      - 'build/**'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web-export
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # NOTE: We download a pinned Odin nightly directly instead of using a
+    # pre-built Docker image. The community Odin images on Docker Hub
+    # (100hellos/odin, primeimages/odin, rzuckerm/odin) are either several
+    # months out of date or not tagged with the exact nightly version this
+    # project requires. Downloading the official GitHub release gives us a
+    # known-good, reproducible compiler version without the overhead of a
+    # 1 GB container image.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Odin nightly
+        run: |
+          set -euo pipefail
+          echo "Downloading Odin dev-2026-09 nightly..."
+          curl -fsSL -o odin.tar.gz \
+            "https://github.com/odin-lang/Odin/releases/download/dev-2026-09/odin-linux-amd64-dev-2026-09.tar.gz"
+          echo "Extracting..."
+          tar -xzf odin.tar.gz
+          echo "Locating Odin binary..."
+          ODIN_BIN=$(find . -maxdepth 2 -name "odin" -type f | head -n1)
+          if [[ -z "$ODIN_BIN" ]]; then
+            echo "ERROR: Could not find odin binary after extraction"
+            ls -la
+            exit 1
+          fi
+          echo "Found: $ODIN_BIN"
+          file "$ODIN_BIN"
+          echo "$ODIN_BIN" > .odin_path
+
+      - name: Build web export
+        run: |
+          set -euo pipefail
+          ODIN_BIN=$(cat .odin_path)
+          echo "Building web export with $ODIN_BIN ..."
+          "$ODIN_BIN" run build -- export-web my-examples/minigolf-2026-08
+          echo "Build output:"
+          ls -la minigolf-2026-08-web-export/
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: deploy
