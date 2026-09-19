@@ -72,11 +72,13 @@ Box :: struct {
 
 Game_State :: struct {
 	cam: struct {
-		pos:      [3]f32,
-		rot:      [3]f32,
-		fov:      f32,
-		target:   [3]f32,
-		distance: f32,
+		pos:           [3]f32,
+		rot:           [3]f32,
+		fov:           f32,
+		target:        [3]f32,
+		default_target: [3]f32,
+		distance:      f32,
+		last_middle_click: f32,
 	},
 
 	balls:         [MAX_PLAYERS]Ball,
@@ -360,7 +362,9 @@ _init :: proc() {
 	g.cam.rot = {0.3, 0, 0}
 	g.cam.fov = rv.deg(degrees = 90)
 	g.cam.target = {0, 3.4, 0}
+	g.cam.default_target = g.cam.target
 	g.cam.distance = 10
+	g.cam.last_middle_click = -1.0
 
 	g.num_players = 5
 	g.active_hole = 0
@@ -508,6 +512,18 @@ _update :: proc(hot_state: rawptr) -> rawptr {
                 mouse_ground_ok = true
             }
         }
+    }
+
+    // ---- middle mouse: move orbit target ------------------------
+    if rv.get_mouse_pressed(.Middle) && mouse_ground_ok {
+        g.cam.target = mouse_ground
+        g.cam.pos = g.cam.target - mat[2] * g.cam.distance
+        camera = rv.make_perspective_3d_camera(
+            rv.get_screen_size(),
+            g.cam.pos,
+            cam_rot_quat,
+            g.cam.fov,
+        )
     }
 
     // ---- click-and-drag shooting ----------------------------------
