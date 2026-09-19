@@ -97,6 +97,7 @@ emcc -o "$OUT_DIR/index.html" "$OUT_OBJ" \
     -sERROR_ON_UNDEFINED_SYMBOLS=0 \
     "-sEXPORTED_FUNCTIONS=[_web_start,_step,_malloc,_free]" \
     "-sEXPORTED_RUNTIME_METHODS=[ccall,cwrap,getValue,setValue,UTF8ToString,stringToUTF8,lengthBytesUTF8]" \
+    -Wl,--allow-multiple-definition \
     --shell-file "$SCRIPT_DIR/web/shell_minimal.html"
 
 rm -f "$OUT_OBJ"
