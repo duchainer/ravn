@@ -8,6 +8,7 @@
 // NOTE: raylib's EndDrawing (called by gpu_raylib.odin) polls input events internally.
 // This backend queries raylib's key state in _poll_window_events, which works because
 // raylib's IsKeyPressed/IsKeyReleased reflect the transition since the last PollInputEvents.
+#+build ignore
 #+vet explicit-allocators shadowing unused
 package ravn_platform
 

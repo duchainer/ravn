@@ -1,4 +1,5 @@
-#+build js
+#+build ignore
+// #+build js
 #+vet explicit-allocators shadowing unused
 package ravn_platform
 
