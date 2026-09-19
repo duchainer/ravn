@@ -35,7 +35,7 @@ export EMSDK_QUIET=1
 
 ODIN_PATH=$(odin root)
 PKG_NAME=$(basename "$PKG")
-OUT_OBJ="$OUT_DIR/${PKG_NAME}.o"
+OUT_OBJ="$OUT_DIR/${PKG_NAME}.obj"
 
 echo "=== Building Odin object file for js_wasm32 (raylib backend) ==="
 
@@ -52,10 +52,40 @@ odin build "$PKG" \
 echo "=== Copying odin.js runtime ==="
 cp "$ODIN_PATH/core/sys/wasm/js/odin.js" "$OUT_DIR/"
 
+# Locate the raylib web library.
+RAYLIB_LIB=""
+for cand in "$RAYLIB_WEB_DIR/libraylib.a" "$RAYLIB_WEB_DIR/libraylib.web.a" "$RAYLIB_WEB_DIR/libraylib.so"; do
+    if [ -f "$cand" ]; then
+        RAYLIB_LIB="$cand"
+        break
+    fi
+done
+
+# Fallback: search Odin's bundled raylib vendor directory.
+if [ -z "$RAYLIB_LIB" ]; then
+    ODIN_RAYLIB_WASM="$(odin root)/vendor/raylib/wasm/libraylib.web.a"
+    if [ -f "$ODIN_RAYLIB_WASM" ]; then
+        RAYLIB_LIB="$ODIN_RAYLIB_WASM"
+    fi
+fi
+
+if [ -z "$RAYLIB_LIB" ]; then
+    echo "Error: Could not find raylib web library."
+    echo "Searched:"
+    echo "  $RAYLIB_WEB_DIR/libraylib.a"
+    echo "  $RAYLIB_WEB_DIR/libraylib.web.a"
+    echo "  $RAYLIB_WEB_DIR/libraylib.so"
+    echo "  $(odin root)/vendor/raylib/wasm/libraylib.web.a"
+    echo ""
+    echo "Build raylib for web or set RAYLIB_WEB_DIR to the directory containing libraylib.a (or libraylib.web.a)."
+    exit 1
+fi
+
 echo "=== Linking with emcc + raylib (web) ==="
+echo "Using: $RAYLIB_LIB"
 
 emcc -o "$OUT_DIR/index.html" "$OUT_OBJ" \
-    -L"$RAYLIB_WEB_DIR" -lraylib \
+    "$RAYLIB_LIB" \
     -sUSE_GLFW=3 \
     -sUSE_WEBGL2=1 \
     -sFULL-ES3=1 \
