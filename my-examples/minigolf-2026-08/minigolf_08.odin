@@ -514,9 +514,15 @@ _update :: proc(hot_state: rawptr) -> rawptr {
         }
     }
 
-    // ---- middle mouse: move orbit target ------------------------
-    if rv.get_mouse_pressed(.Middle) && mouse_ground_ok {
-        g.cam.target = mouse_ground
+    // ---- middle mouse: move orbit target / double-click reset ----
+    DOUBLE_CLICK_TIME :: f32(0.3)
+    if rv.get_mouse_pressed(.Middle) {
+        if g.game_time - g.cam.last_middle_click < DOUBLE_CLICK_TIME {
+            g.cam.target = g.cam.default_target
+        } else if mouse_ground_ok {
+            g.cam.target = mouse_ground
+        }
+        g.cam.last_middle_click = g.game_time
         g.cam.pos = g.cam.target - mat[2] * g.cam.distance
         camera = rv.make_perspective_3d_camera(
             rv.get_screen_size(),
