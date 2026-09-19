@@ -1,0 +1,16 @@
+# Name of the Worker as shown in the Cloudflare dashboard.
+name = "discord-mini-golf"
+
+# Date used to pin the Workers runtime version.
+# https://developers.cloudflare.com/workers/configuration/compatibility-dates/
+compatibility_date = "2026-09-19"
+
+[assets]
+# Folder containing the static files to upload and serve.
+# This is the output directory from the Odin web export build step.
+directory = "./minigolf-2026-08-web-export"
+
+# For single-page applications (SPA), unmatched routes fall back to index.html
+# instead of returning a 404. Required for WASM web exports that use client-side routing.
+# https://developers.cloudflare.com/workers/static-assets/routing/
+not_found_handling = "single-page-application"
