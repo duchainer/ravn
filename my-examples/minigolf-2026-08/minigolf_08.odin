@@ -463,10 +463,11 @@ _update :: proc(hot_state: rawptr) -> rawptr {
     // Scroll = zoom
     scroll := rv.get_scroll_delta().y
     if scroll != 0 {
-        // Web exports send deltas 15-60x larger than desktop; clamp to avoid instant max/min zoom
-        MAX_SCROLL_DELTA :: f32(3.0)
-        clamped_scroll := clamp(scroll, -MAX_SCROLL_DELTA, MAX_SCROLL_DELTA)
-        g.cam.distance *= math.pow(0.9, clamped_scroll)
+        // Web exports send deltas 15-60x larger than desktop
+        when ODIN_OS == .JS {
+            scroll /= 15.0
+        }
+        g.cam.distance *= math.pow(0.9, scroll)
         g.cam.distance = clamp(g.cam.distance, 1.0, 100.0)
     }
 
